@@ -355,44 +355,32 @@ def test_rot():
 rotg_module = dev.load_shader(compile_shader("rotg.glsl") )
 rotg_pipeline = dev.create_pipeline(rotg_module, "main")
 
-def invoke_rotg(n, x_buf, incx, y_buf, incy, c, s):
-	# first pack the push constants
-	consts = np.array([n, 0, 0, 0, 0], dtype = np.uint32)
-	consts.view(np.int32)[1] = incx
-	consts.view(np.int32)[2] = incy
-	consts.view(np.float32)[3] = c
-	consts.view(np.float32)[4] = s
-	
-	# then execute the pipeline
-	rot_pipeline.dispatch([n], [x_buf, y_buf], consts)
+def invoke_rotg(n, a_buf, b_buf, c_buf, s_buf):
+	rotg_pipeline.dispatch([n], [a_buf, b_buf, c_buf, s_buf])
 	dev.sync()
 
 def test_rotg():
-	raise NotImplementedError
-	SIZE = 2048
-	x = np.arange(SIZE).astype(np.float32)
-	y = np.linspace(20.0, 52.0, num = SIZE, dtype = np.float32)
+	SIZE = 1
+	a = np.array(2.4, dtype = np.float32)
+	b = np.array(3.2, dtype = np.float32)
 	
-	x_buf = dev.allocate_buffer(x.nbytes)
-	y_buf = dev.allocate_buffer(y.nbytes)
+	a_buf = dev.allocate_buffer(a.nbytes)
+	b_buf = dev.allocate_buffer(b.nbytes)
 	
-	x_buf.copy_in(x)
-	y_buf.copy_in(y)
+	a_buf.copy_in(a)
+	b_buf.copy_in(b)
 	
-	a = np.pi*234
-	c = np.cos(a)
-	s = np.sin(a)
+	c_buf = dev.allocate_buffer(a.nbytes)
+	s_buf = dev.allocate_buffer(b.nbytes)
 	
-	invoke_rotg(SIZE, x_buf, 1, y_buf, 1, c, s)
+	invoke_rotg(SIZE, a_buf, b_buf, c_buf, s_buf)
 	
-	x_result = np.zeros_like(x)
-	x_buf.copy_out(x_result)
+	c_expected, s_expected = blas.srotg(a, b)
+	c_result = np.array(0.0, dtype = np.float32)
+	s_result = np.array(0.0, dtype = np.float32)
+	c_buf.copy_out(c_result)
+	s_buf.copy_out(s_result)
 	
-	y_result = np.zeros_like(y)
-	y_buf.copy_out(y_result)
-	
-	blas.srot(x, y, c, s, SIZE, 0, 1, 0, 1, True, True)
-	
-	assert np.allclose(x_result, x)
-	assert np.allclose(y_result, y)
+	assert np.allclose(c_result, c_expected)
+	assert np.allclose(s_result, s_expected)
 
