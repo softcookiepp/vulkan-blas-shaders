@@ -399,7 +399,7 @@ def invoke_rotm(n, x_buf, incx, y_buf, incy, param):
 	dev.sync()
 
 def test_rotm():
-	for flag in [-1.0]:
+	for flag in [-1.0, 0.0, 1.0, -2.0]:
 		SIZE = 2048
 		x = np.arange(SIZE).astype(np.float32)
 		y = np.linspace(20.0, 52.0, num = SIZE, dtype = np.float32)
