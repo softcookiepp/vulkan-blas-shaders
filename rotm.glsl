@@ -24,6 +24,14 @@ void main()
 	FLOAT_T xval = x[ix];
 	FLOAT_T yval = y[iy];
 	
-	x[ix] = (consts.c*xval) + (consts.s*yval);
-	y[iy] = (consts.c*yval) - (consts.s*xval);
+	FLOAT_T flag = consts.params[0];
+	FLOAT_T h11 = consts.params[1];
+	FLOAT_T h12 = consts.params[2];
+	FLOAT_T h21 = consts.params[3];
+	FLOAT_T h22 = consts.params[4];
+	
+	x[ix] = h11*xval + h12*yval;
+	y[iy] = h21*xval + h22*yval;
+	
+	
 }
