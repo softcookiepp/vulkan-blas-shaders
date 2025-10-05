@@ -387,43 +387,42 @@ def test_rotg():
 rotm_module = dev.load_shader(compile_shader("rotm.glsl") )
 rotm_pipeline = dev.create_pipeline(rotm_module, "main", push_constants = np.zeros(8, dtype = np.uint32) )
 
-def invoke_rotm(n, x_buf, incx, y_buf, incy, c, s):
+def invoke_rotm(n, x_buf, incx, y_buf, incy, param):
 	# first pack the push constants
-	consts = np.array([n, 0, 0, 0, 0], dtype = np.uint32)
+	consts = np.array([n, 0, 0, 0, 0, 0, 0, 0], dtype = np.uint32)
 	consts.view(np.int32)[1] = incx
 	consts.view(np.int32)[2] = incy
-	consts.view(np.float32)[3] = c
-	consts.view(np.float32)[4] = s
+	consts.view(np.float32)[3:8] = param.astype(np.float32)
 	
 	# then execute the pipeline
 	rotm_pipeline.dispatch([n], [x_buf, y_buf], consts)
 	dev.sync()
 
 def test_rotm():
-	raise NotImplementedError
-	SIZE = 2048
-	x = np.arange(SIZE).astype(np.float32)
-	y = np.linspace(20.0, 52.0, num = SIZE, dtype = np.float32)
-	
-	x_buf = dev.allocate_buffer(x.nbytes)
-	y_buf = dev.allocate_buffer(y.nbytes)
-	
-	x_buf.copy_in(x)
-	y_buf.copy_in(y)
-	
-	a = np.pi*234
-	c = np.cos(a)
-	s = np.sin(a)
-	
-	invoke_rotm(SIZE, x_buf, 1, y_buf, 1, c, s)
-	
-	x_result = np.zeros_like(x)
-	x_buf.copy_out(x_result)
-	
-	y_result = np.zeros_like(y)
-	y_buf.copy_out(y_result)
-	
-	blas.srot(x, y, c, s, SIZE, 0, 1, 0, 1, True, True)
-	
-	assert np.allclose(x_result, x)
-	assert np.allclose(y_result, y)
+	for flag in [-1.0]:
+		SIZE = 2048
+		x = np.arange(SIZE).astype(np.float32)
+		y = np.linspace(20.0, 52.0, num = SIZE, dtype = np.float32)
+		
+		x_buf = dev.allocate_buffer(x.nbytes)
+		y_buf = dev.allocate_buffer(y.nbytes)
+		
+		x_buf.copy_in(x)
+		y_buf.copy_in(y)
+		
+		param = np.array([0.0, 23.6, -20.5, 2.0, 6.892], dtype = np.float32)
+		param[0] = flag
+		
+		invoke_rotm(SIZE, x_buf, 1, y_buf, 1, param)
+		
+		x_result = np.zeros_like(x)
+		x_buf.copy_out(x_result)
+		
+		y_result = np.zeros_like(y)
+		y_buf.copy_out(y_result)
+		
+		blas.srotm(x, y, param, SIZE, 0, 1, 0, 1, True, True)
+		
+		assert np.allclose(x_result, x)
+		assert np.allclose(y_result, y)
+		print("done with flag:", flag)
