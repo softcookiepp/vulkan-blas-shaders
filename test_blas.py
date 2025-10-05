@@ -2,6 +2,7 @@ import numpy as np
 import pytart
 import scipy.linalg.blas as blas
 import os
+import pytest
 
 tart = pytart.Instance()
 dev = tart.create_device(0)
@@ -426,3 +427,7 @@ def test_rotm():
 		assert np.allclose(x_result, x)
 		assert np.allclose(y_result, y)
 		print("done with flag:", flag)
+
+@pytest.mark.xfail
+def test_rotmg():
+	raise NotImplementedError
