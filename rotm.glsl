@@ -25,10 +25,10 @@ void main()
 	FLOAT_T yval = y[iy];
 	
 	FLOAT_T flag = consts.params[0];
-	FLOAT_T h11 = consts.params[1];
-	FLOAT_T h12 = consts.params[2];
-	FLOAT_T h21 = consts.params[3];
-	FLOAT_T h22 = consts.params[4];
+	FLOAT_T h11 = flag == -1.0 || flag == 1.0 ? consts.params[1] : 1.0;
+	FLOAT_T h12 = flag != -2.0 ? (flag == -1.0 || flag == 0.0 ? consts.params[2]: 1.0) : 0.0;
+	FLOAT_T h21 = flag != -2.0 ? (flag == -1.0 || flag == 0.0 ? consts.params[3]: -1.0) : 0.0;;
+	FLOAT_T h22 = flag == -1.0 || flag == 1.0 ? consts.params[4] : 1.0;
 	
 	x[ix] = h11*xval + h12*yval;
 	y[iy] = h21*xval + h22*yval;
