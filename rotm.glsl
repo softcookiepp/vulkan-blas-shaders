@@ -9,9 +9,10 @@ layout(set = 0, binding = 1) buffer y_buf { FLOAT_T y[]; };
 
 layout(push_constant) uniform push
 {
-	uint n; // size 
+	uint n; // size
 	int incx;
 	int incy;
+	FLOAT_T params[5];
 } consts;
 
 void main()
@@ -23,6 +24,6 @@ void main()
 	FLOAT_T xval = x[ix];
 	FLOAT_T yval = y[iy];
 	
-	y[iy] = xval;
-	x[ix] = yval;
+	x[ix] = (consts.c*xval) + (consts.s*yval);
+	y[iy] = (consts.c*yval) - (consts.s*xval);
 }

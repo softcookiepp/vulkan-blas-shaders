@@ -7,7 +7,7 @@
 
 layout(local_size_x = LX, local_size_y = 1, local_size_z = 1) in;
 
-layout(set = 0, binding = 0) buffer inp_buffer { float inp[]; };
+layout(set = 0, binding = 0) buffer inp_buffer { FLOAT_T inp[]; };
 layout(set = 0, binding = 1) buffer outp_buffer { uint outp[]; };
 
 layout(push_constant) uniform push
@@ -16,7 +16,7 @@ layout(push_constant) uniform push
 	int inp_stride;
 } consts;
 
-shared float shared_mem[LX];
+shared FLOAT_T shared_mem[LX];
 shared uint indices[LX];
 
 void main()
@@ -26,7 +26,7 @@ void main()
 	barrier();
 	
 	// loooop
-	float to_shared = INFINITY;
+	FLOAT_T to_shared = INFINITY;
 	uint idx = -1;
 	uint num_blocks = 1 + (consts.size / LX);
 	uint lx = gl_LocalInvocationID.x;
@@ -37,7 +37,7 @@ void main()
 		{
 			uint elem = pos;
 			pos = compute_index(elem, consts.size, consts.inp_stride);
-			float val = abs(inp[pos]);
+			FLOAT_T val = abs(inp[pos]);
 			if (val < to_shared)
 			{
 				to_shared = val;
@@ -51,7 +51,7 @@ void main()
 	
 	if (lx == 0)
 	{
-		float min_val = INFINITY;
+		FLOAT_T min_val = INFINITY;
 		uint out_idx = 0;
 		for (uint i = 0; i < LX; i += 1)
 		{
