@@ -426,8 +426,36 @@ def test_rotm():
 		
 		assert np.allclose(x_result, x)
 		assert np.allclose(y_result, y)
-		print("done with flag:", flag)
 
 @pytest.mark.xfail
 def test_rotmg():
+	# not going to worry about this one for now, given how un-parallelizable it is
 	raise NotImplementedError
+	
+
+scal_module = dev.load_shader(compile_shader("scal.glsl") )
+scal_pipeline = dev.create_pipeline(scal_module, "main", push_constants = np.zeros(3, dtype = np.uint32) )
+
+def invoke_scal(n, alpha, x_buf, incx):
+	# first pack the push constants
+	consts = np.array([n, 0, 0], dtype = np.uint32)
+	consts.view(np.float32)[1] = alpha
+	consts.view(np.int32)[2] = incx
+	
+	# then execute the pipeline
+	scal_pipeline.dispatch([n], [x_buf], consts)
+	dev.sync()
+
+def test_scal():
+	SIZE = 2048
+	x = np.arange(SIZE).astype(np.float32)
+	x_buf = dev.allocate_buffer(x.nbytes)
+	x_buf.copy_in(x)
+	
+	alpha = 4.5
+	
+	invoke_scal(SIZE, alpha, x_buf, 1)
+	
+	x_result = np.zeros_like(x)
+	x_buf.copy_out(x_result)
+	assert np.allclose(x_result, x*alpha)
