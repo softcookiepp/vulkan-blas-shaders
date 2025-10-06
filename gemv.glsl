@@ -38,10 +38,10 @@ void main()
 	// the column position will be the thread id, the row position will be the workgroup id.
 	// so the index of A will be...
 	uint Aidx = 0;
-	if (consts.transpose == NO_TRANSPOSE)
+	if (consts.order == ROW_MAJOR)
 		// not transposed
 		Aidx = group + thread*consts.lda;
-	else if (consts.transpose == TRANSPOSE)
+	else if (consts.order == COLUMN_MAJOR)
 		// transposed, and thus the thread and group are reversed
 		Aidx = thread*consts.lda + group;
 	

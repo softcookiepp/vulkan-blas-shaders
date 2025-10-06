@@ -481,6 +481,7 @@ def get_gemv_pipeline(column_size: int):
 	return gemv_pipelines[column_size]
 	
 def invoke_gemv(
+		order,
 		trans: ETranspose,
 		m: int, n: int, alpha: float,
 		A_buf: pytart.Buffer, lda: int,
@@ -491,7 +492,7 @@ def invoke_gemv(
 	
 	# pack push constants
 	push = np.zeros(7, dtype = np.float32)
-	push.view(np.uint32)[0] = 0;
+	push.view(np.uint32)[0] = order.value;
 	push.view(np.uint32)[1] = trans.value;
 	push.view(np.float32)[2] =  alpha;
 	push.view(np.uint32)[3] = lda;
@@ -513,19 +514,29 @@ def make_column_major(a):
 
 def test_gemv():
 	# just do column major first, since that is the default for scipy
-	for order in [EOrder.ROW_MAJOR]:#, EOrder.ROW_MAJOR]:
-		for transpose in [ETranspose.NO_TRANSPOSE]:#, ETranspose.TRANSPOSE]:
+	for order in [EOrder.ROW_MAJOR, EOrder.ROW_MAJOR]:
+		for transpose in [ETranspose.NO_TRANSPOSE, ETranspose.TRANSPOSE]:
+			
+			a_shape = (4, 8)
+			if transpose == ETranspose.TRANSPOSE:
+				a_shape = (8, 4)
+			
+			# this should work?
+			if transpose == ETranspose.TRANSPOSE and order == EOrder.ROW_MAJOR:
+				order = EOrder.COLUMN_MAJOR
+				transpose = ETranspose.NO_TRANSPOSE
+			elif transpose == ETranspose.TRANSPOSE and order == EOrder.COLUMN_MAJOR:
+				order = EOrder.ROW_MAJOR
+				ETranspose.NO_TRANSPOSE
+			print(order, transpose)
+			
 			# vector to multiply
 			x = np.random.randn(4).astype(np.float32)
 			
 			# matrix to multiply
 			A = np.random.randn(4*8).astype(np.float32)
-			if transpose == ETranspose.NO_TRANSPOSE:
-				A = A.reshape(4, 8)
-			elif transpose == ETranspose.TRANSPOSE:
-				A = A.reshape(8, 4)
-			else:
-				raise NotImplementedError
+			
+			A = A.reshape(*a_shape)
 			if order == EOrder.COLUMN_MAJOR:
 				A = make_column_major(A)
 			
@@ -546,7 +557,7 @@ def test_gemv():
 			alpha = 2.0
 			beta = 1.5
 			lda = y.size
-			invoke_gemv(transpose, x.size, y.size, alpha, A_buf, lda, x_buf, 1, beta, y_buf, 1)
+			invoke_gemv(order, transpose, x.size, y.size, alpha, A_buf, lda, x_buf, 1, beta, y_buf, 1)
 			
 			y_result1 = np.zeros_like(y)
 			
