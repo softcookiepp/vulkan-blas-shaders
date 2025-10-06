@@ -507,6 +507,19 @@ def invoke_gemv(
 	gemv_pipeline.dispatch([n, 1, 1], [x_buf, A_buf, y_buf], push)
 	dev.sync()
 
+def reference_gemv(
+		order: EOrder,
+		trans: ETranspose,
+		m: int, n: int, alpha: float,
+		A_buf: np.ndarray, lda: int,
+		x_buf: np.ndarray, incx: int,
+		beta: float,
+		y_buf: np.ndarray, incy: int
+	):
+	
+	y[:] = blas.sgemv(alpha, make_column_major(A_buf), x, beta, y)
+	y[:] = alpha*np.dot(x, A) + beta*y
+
 def make_column_major(a):
 	# only works for 2d or lower
 	assert len(a.shape) <= 2
@@ -514,55 +527,53 @@ def make_column_major(a):
 
 def test_gemv():
 	# just do column major first, since that is the default for scipy
-	for order in [EOrder.ROW_MAJOR, EOrder.ROW_MAJOR]:
-		for transpose in [ETranspose.NO_TRANSPOSE, ETranspose.TRANSPOSE]:
-			
-			a_shape = (4, 8)
-			if transpose == ETranspose.TRANSPOSE:
-				a_shape = (8, 4)
-			
-			# this should work?
-			if transpose == ETranspose.TRANSPOSE and order == EOrder.ROW_MAJOR:
-				order = EOrder.COLUMN_MAJOR
-				transpose = ETranspose.NO_TRANSPOSE
-			elif transpose == ETranspose.TRANSPOSE and order == EOrder.COLUMN_MAJOR:
-				order = EOrder.ROW_MAJOR
-				ETranspose.NO_TRANSPOSE
-
-			# vector to multiply
-			x = np.random.randn(4).astype(np.float32)
-			
-			# matrix to multiply
-			A = np.random.randn(4*8).astype(np.float32)
-			
-			A = A.reshape(*a_shape)
-			if order == EOrder.COLUMN_MAJOR:
-				A = make_column_major(A)
-			
-			# vector to multiply beta by/output
-			y = np.random.randn(8).astype(np.float32)
-			
-			# load it all in
-			x_buf = dev.allocate_buffer(x.nbytes)
-			x_buf.copy_in(x)
-			A_buf = dev.allocate_buffer(A.nbytes)
-			A_buf.copy_in(A)
-			y_buf = dev.allocate_buffer(y.nbytes)
-			y_buf.copy_in(y)
-			alpha = 2.0
-			beta = 1.5
-			lda = y.size
-			invoke_gemv(order, transpose, x.size, y.size, alpha, A_buf, lda, x_buf, 1, beta, y_buf, 1)
-			
-			y_result1 = np.zeros_like(y)
-			
-			y_buf.copy_out(y_result1)
-			
-			y_expected = blas.sgemv(alpha, make_column_major(A), x, beta, y)
-			y_result = alpha*np.dot(x, A) + beta*y
-			
-			assert np.allclose(y_expected, y_result)
-			assert np.allclose(y_result1, y_result)
-			
-			#raise NotImplementedError
+	order = EOrder.COLUMN_MAJOR
+	for transpose in [ETranspose.NO_TRANSPOSE, ETranspose.TRANSPOSE]:
 		
+		a_shape = (4, 8)
+		if transpose == ETranspose.TRANSPOSE:
+			a_shape = (8, 4)
+		
+		# this should work?
+		if transpose == ETranspose.TRANSPOSE and order == EOrder.ROW_MAJOR:
+			order = EOrder.COLUMN_MAJOR
+			transpose = ETranspose.NO_TRANSPOSE
+		elif transpose == ETranspose.TRANSPOSE and order == EOrder.COLUMN_MAJOR:
+			order = EOrder.ROW_MAJOR
+			ETranspose.NO_TRANSPOSE
+
+		# vector to multiply
+		x = np.random.randn(4).astype(np.float32)
+		
+		# matrix to multiply
+		A = np.random.randn(4*8).astype(np.float32)
+		
+		A = A.reshape(*a_shape)
+		if order == EOrder.COLUMN_MAJOR:
+			A = make_column_major(A)
+		
+		# vector to multiply beta by/output
+		y = np.random.randn(8).astype(np.float32)
+		
+		# load it all in
+		x_buf = dev.allocate_buffer(x.nbytes)
+		x_buf.copy_in(x)
+		A_buf = dev.allocate_buffer(A.nbytes)
+		A_buf.copy_in(A)
+		y_buf = dev.allocate_buffer(y.nbytes)
+		y_buf.copy_in(y)
+		alpha = 2.0
+		beta = 1.5
+		lda = y.size
+		invoke_gemv(order, transpose, x.size, y.size, alpha, A_buf, lda, x_buf, 1, beta, y_buf, 1)
+		
+		y_result1 = np.zeros_like(y)
+		
+		y_buf.copy_out(y_result1)
+		
+		y_expected = blas.sgemv(alpha, make_column_major(A), x, beta, y)
+		y_result = alpha*np.dot(x, A) + beta*y
+		
+		assert np.allclose(y_expected, y_result)
+		assert np.allclose(y_result1, y_result)
+	
