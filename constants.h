@@ -23,4 +23,14 @@
 
 #define INFINITY FLOAT_T(uintBitsToFloat(0x7F800000))
 
+// memory orders
+#define ROW_MAJOR 101
+#define COLUMN_MAJOR 102
+
+// transpose types
+#define NO_TRANSPOSE 111
+#define TRANSPOSE 112
+#define CONJ_TRANSPOSE 113
+#define CONJ_NO_TRANSPOSE 114
+
 #endif

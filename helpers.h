@@ -26,4 +26,10 @@ uint compute_index(uint elem, uint size, int inc)
 	return idx;
 
 }
+
+uint compute_mat_index(uint row_elem, uint column_elem)
+{
+	return 0;
+}
+
 #endif

@@ -471,6 +471,15 @@ def test_scal():
 	x_buf.copy_out(x_result)
 	assert np.allclose(x_result, x*alpha)
 	
+	
+gemv_module = dev.load_shader(compile_shader("gemv.glsl") )
+gemv_pipelines = {}
+def get_gemv_pipeline(column_size: int):
+	if not column_size in gemv_pipelines.keys():
+		ls = np.array([column_size, column_size], dtype = np.uint32)
+		gemv_pipelines[column_size] = dev.create_pipeline(gemv_module, "main", ls, np.zeros(7).astype(np.float32) )
+	return gemv_pipelines[column_size]
+	
 def invoke_gemv(
 		order: EOrder, trans: ETranspose,
 		m: int, n: int, alpha: float,
@@ -479,9 +488,25 @@ def invoke_gemv(
 		beta: float,
 		y_buf: pytart.Buffer, incy: int
 	):
+	
 	if order == EOrder.ROW_MAJOR:
 		raise NotImplementedError
-	raise NotImplementedError
+	# pack push constants
+	push = np.zeros(7, dtype = np.float32)
+	push.view(np.uint32)[0] = order.value;
+	push.view(np.uint32)[1] = trans.value;
+	push.view(np.float32)[2] =  alpha;
+	push.view(np.uint32)[3] = lda;
+	push.view(np.int32)[4] = incx;
+	push.view(np.float32)[5] = beta;
+	push.view(np.int32)[6] = incy;
+	
+	# initialize correct pipeline
+	gemv_pipeline = get_gemv_pipeline(m)
+	
+	# dispatch
+	gemv_pipeline.dispatch([n, 1, 1], [x_buf, A_buf, y_buf], push)
+	dev.sync()
 
 def make_column_major(a):
 	# only works for 2d or lower
@@ -490,35 +515,52 @@ def make_column_major(a):
 
 def test_gemv():
 	# just do column major first, since that is the default for scipy
-	for order in [EOrder.COLUMN_MAJOR, EOrder.ROW_MAJOR]:
-		# vector to multiply
-		x = np.arange(4).astype(np.float32)
-		
-		# matrix to multiply
-		A = np.arange(4*8).astype(np.float32).reshape(4, 8)
-		if order == EOrder.COLUMN_MAJOR:
-			A = make_column_major(A)
-		
-		# vector to multiply beta by/output
-		y = np.arange(8).astype(np.float32)
-		
-		# load it all in
-		x_buf = dev.allocate_buffer(x.nbytes)
-		x_buf.copy_in(x)
-		A_buf = dev.allocate_buffer(A.nbytes)
-		A_buf.copy_in(A)
-		y_buf = dev.allocate_buffer(y.nbytes)
-		y_buf.copy_in(y)
-		
-		alpha = 2.0
-		beta = 1.5
-		if order == EOrder.COLUMN_MAJOR:
-			y_expected = blas.sgemv(alpha, A, x, beta, y)
-			y_result = alpha*np.dot(x, A.T) + beta*y
-		else:
-			y_expected = blas.sgemv(alpha, make_column_major(A), x, beta, y)
-			y_result = alpha*np.dot(x, A) + beta*y
-		assert np.allclose(y_expected, y_result)
-		
-		#raise NotImplementedError
+	for order in [EOrder.COLUMN_MAJOR]:#, EOrder.ROW_MAJOR]:
+		for transpose in [ETranspose.NO_TRANSPOSE]:#, ETranspose.TRANSPOSE]:
+			# vector to multiply
+			x = np.random.randn(4).astype(np.float32)
+			
+			# matrix to multiply
+			A = np.random.randn(4*8).astype(np.float32)
+			if transpose == ETranspose.NO_TRANSPOSE:
+				A = A.reshape(4, 8)
+			elif transpose == ETranspose.TRANSPOSE:
+				A = A.reshape(8, 4)
+			else:
+				raise NotImplementedError
+			if order == EOrder.COLUMN_MAJOR:
+				A = make_column_major(A)
+			
+			# vector to multiply beta by/output
+			y = np.random.randn(8).astype(np.float32)
+			
+			print(x.shape)
+			print(A.shape)
+			print(y.shape)
+			
+			# load it all in
+			x_buf = dev.allocate_buffer(x.nbytes)
+			x_buf.copy_in(x)
+			A_buf = dev.allocate_buffer(A.nbytes)
+			A_buf.copy_in(A)
+			y_buf = dev.allocate_buffer(y.nbytes)
+			y_buf.copy_in(y)
+			alpha = 2.0
+			beta = 1.5
+			lda = x.size
+			invoke_gemv(order, transpose, x.size, y.size, alpha, A_buf, lda, x_buf, 1, beta, y_buf, 1)
+			y_result1 = np.zeros_like(y)
+			y_buf.copy_out(y_result1)
+			if transpose == ETranspose.TRANSPOSE:
+				A = A.T
+			if order == EOrder.COLUMN_MAJOR:
+				y_expected = blas.sgemv(alpha, A, x, beta, y)
+				y_result = alpha*np.dot(x, A.T) + beta*y
+			else:
+				y_expected = blas.sgemv(alpha, make_column_major(A), x, beta, y)
+				y_result = alpha*np.dot(x, A) + beta*y
+			assert np.allclose(y_result1, y_result)
+			assert np.allclose(y_expected, y_result)
+			
+			#raise NotImplementedError
 		
