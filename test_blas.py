@@ -479,9 +479,46 @@ def invoke_gemv(
 		beta: float,
 		y_buf: pytart.Buffer, incy: int
 	):
-	
+	if order == EOrder.ROW_MAJOR:
+		raise NotImplementedError
 	raise NotImplementedError
 
+def make_column_major(a):
+	# only works for 2d or lower
+	assert len(a.shape) <= 2
+	return np.ascontiguousarray(a.T)
+
 def test_gemv():
-	raise NotImplementedError
-	
+	# just do column major first, since that is the default for scipy
+	for order in [EOrder.COLUMN_MAJOR, EOrder.ROW_MAJOR]:
+		# vector to multiply
+		x = np.arange(4).astype(np.float32)
+		
+		# matrix to multiply
+		A = np.arange(4*8).astype(np.float32).reshape(4, 8)
+		if order == EOrder.COLUMN_MAJOR:
+			A = make_column_major(A)
+		
+		# vector to multiply beta by/output
+		y = np.arange(8).astype(np.float32)
+		
+		# load it all in
+		x_buf = dev.allocate_buffer(x.nbytes)
+		x_buf.copy_in(x)
+		A_buf = dev.allocate_buffer(A.nbytes)
+		A_buf.copy_in(A)
+		y_buf = dev.allocate_buffer(y.nbytes)
+		y_buf.copy_in(y)
+		
+		alpha = 2.0
+		beta = 1.5
+		if order == EOrder.COLUMN_MAJOR:
+			y_expected = blas.sgemv(alpha, A, x, beta, y)
+			y_result = alpha*np.dot(x, A.T) + beta*y
+		else:
+			y_expected = blas.sgemv(alpha, make_column_major(A), x, beta, y)
+			y_result = alpha*np.dot(x, A) + beta*y
+		assert np.allclose(y_expected, y_result)
+		
+		#raise NotImplementedError
+		
