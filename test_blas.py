@@ -542,10 +542,6 @@ def test_gemv():
 			# vector to multiply beta by/output
 			y = np.random.randn(8).astype(np.float32)
 			
-			print(x.shape)
-			print(A.shape)
-			print(y.shape)
-			
 			# load it all in
 			x_buf = dev.allocate_buffer(x.nbytes)
 			x_buf.copy_in(x)
