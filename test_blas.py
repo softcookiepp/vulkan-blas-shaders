@@ -528,8 +528,7 @@ def test_gemv():
 			elif transpose == ETranspose.TRANSPOSE and order == EOrder.COLUMN_MAJOR:
 				order = EOrder.ROW_MAJOR
 				ETranspose.NO_TRANSPOSE
-			print(order, transpose)
-			
+
 			# vector to multiply
 			x = np.random.randn(4).astype(np.float32)
 			
