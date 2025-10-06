@@ -3,9 +3,20 @@ import pytart
 import scipy.linalg.blas as blas
 import os
 import pytest
+import enum
 
 tart = pytart.Instance()
 dev = tart.create_device(0)
+
+class EOrder(enum.Enum):
+	ROW_MAJOR = 101
+	COLUMN_MAJOR = 102
+
+class ETranspose(enum.Enum):
+	NO_TRANSPOSE = 111
+	TRANSPOSE = 112
+	CONJ_TRANSPOSE = 113
+	CONJ_NO_TRANSPOSE = 114
 
 def compile_shader(fn):
 	tmp = "tmp.spv"
@@ -459,3 +470,18 @@ def test_scal():
 	x_result = np.zeros_like(x)
 	x_buf.copy_out(x_result)
 	assert np.allclose(x_result, x*alpha)
+	
+def invoke_gemv(
+		order: EOrder, trans: ETranspose,
+		m: int, n: int, alpha: float,
+		A_buf: pytart.Buffer, lda: int,
+		x_buf: pytart.Buffer, incx: int,
+		beta: float,
+		y_buf: pytart.Buffer, incy: int
+	):
+	
+	raise NotImplementedError
+
+def test_gemv():
+	raise NotImplementedError
+	
