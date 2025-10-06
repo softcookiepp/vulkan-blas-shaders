@@ -481,7 +481,7 @@ def get_gemv_pipeline(column_size: int):
 	return gemv_pipelines[column_size]
 	
 def invoke_gemv(
-		order: EOrder, trans: ETranspose,
+		trans: ETranspose,
 		m: int, n: int, alpha: float,
 		A_buf: pytart.Buffer, lda: int,
 		x_buf: pytart.Buffer, incx: int,
@@ -489,11 +489,9 @@ def invoke_gemv(
 		y_buf: pytart.Buffer, incy: int
 	):
 	
-	if order == EOrder.ROW_MAJOR:
-		raise NotImplementedError
 	# pack push constants
 	push = np.zeros(7, dtype = np.float32)
-	push.view(np.uint32)[0] = order.value;
+	push.view(np.uint32)[0] = 0;
 	push.view(np.uint32)[1] = trans.value;
 	push.view(np.float32)[2] =  alpha;
 	push.view(np.uint32)[3] = lda;
@@ -515,7 +513,7 @@ def make_column_major(a):
 
 def test_gemv():
 	# just do column major first, since that is the default for scipy
-	for order in [EOrder.COLUMN_MAJOR]:#, EOrder.ROW_MAJOR]:
+	for order in [EOrder.ROW_MAJOR]:#, EOrder.ROW_MAJOR]:
 		for transpose in [ETranspose.NO_TRANSPOSE]:#, ETranspose.TRANSPOSE]:
 			# vector to multiply
 			x = np.random.randn(4).astype(np.float32)
@@ -547,20 +545,18 @@ def test_gemv():
 			y_buf.copy_in(y)
 			alpha = 2.0
 			beta = 1.5
-			lda = x.size
-			invoke_gemv(order, transpose, x.size, y.size, alpha, A_buf, lda, x_buf, 1, beta, y_buf, 1)
+			lda = y.size
+			invoke_gemv(transpose, x.size, y.size, alpha, A_buf, lda, x_buf, 1, beta, y_buf, 1)
+			
 			y_result1 = np.zeros_like(y)
+			
 			y_buf.copy_out(y_result1)
-			if transpose == ETranspose.TRANSPOSE:
-				A = A.T
-			if order == EOrder.COLUMN_MAJOR:
-				y_expected = blas.sgemv(alpha, A, x, beta, y)
-				y_result = alpha*np.dot(x, A.T) + beta*y
-			else:
-				y_expected = blas.sgemv(alpha, make_column_major(A), x, beta, y)
-				y_result = alpha*np.dot(x, A) + beta*y
-			assert np.allclose(y_result1, y_result)
+			
+			y_expected = blas.sgemv(alpha, make_column_major(A), x, beta, y)
+			y_result = alpha*np.dot(x, A) + beta*y
+			
 			assert np.allclose(y_expected, y_result)
+			assert np.allclose(y_result1, y_result)
 			
 			#raise NotImplementedError
 		

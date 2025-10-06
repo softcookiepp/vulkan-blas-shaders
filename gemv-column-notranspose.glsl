@@ -40,7 +40,7 @@ void main()
 	uint Aidx = 0;
 	if (consts.transpose == NO_TRANSPOSE)
 		// not transposed
-		Aidx = group + thread*consts.lda;
+		Aidx = group*consts.lda + thread;
 	else if (consts.transpose == TRANSPOSE)
 		// transposed, and thus the thread and group are reversed
 		Aidx = thread*consts.lda + group;
