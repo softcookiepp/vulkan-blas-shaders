@@ -2,6 +2,7 @@
 #define HELPERS_H
 
 #include "constants.h"
+#include "ops.h"
 
 uint compute_index(uint elem, uint size, int inc)
 {

@@ -2,7 +2,15 @@
 #define CONSTANTS_H
 
 #ifndef FLOAT_T
-#define FLOAT_T float
+	#ifdef USE_COMPLEX
+		// complex numbers are treated as 2-element vectors
+		#define ELEM_T float
+		#define FLOAT_T vec2
+		#define FVEC2_T vec4
+	#else
+		#define FLOAT_T float
+		#define FVEC2_T vec2
+	#endif
 #endif
 
 #ifndef INT_T

@@ -5,7 +5,6 @@
 layout(constant_id = 0) const uint LX = 1; // vector size; this MUST be specified at time of pipeline construction
 layout(local_size_x_id = 0, local_size_y = 1, local_size_z = 1) in;
 
-
 layout(set = 0, binding = 0) buffer x_buf { FLOAT_T x[]; };
 layout(set = 0, binding = 1) buffer A_buf { FLOAT_T A[]; };
 layout(set = 0, binding = 2) buffer y_buf { FLOAT_T y[]; };
@@ -41,7 +40,7 @@ void main()
 	uint row_elem = consts.transpose == NO_TRANSPOSE ? group : thread;
 	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.order);
 	
-	shared_mem[thread] = x[xidx] * A[Aidx];
+	shared_mem[thread] = MUL(x[xidx], A[Aidx]);
 	barrier();
 	
 	// from here on out, only the first thread will need to do anything
@@ -57,6 +56,6 @@ void main()
 		// compute the final result
 		uint yidx = compute_index(group, 8, consts.incy);
 		FLOAT_T yval = y[yidx];
-		y[yidx] = (xval*consts.a) + (yval*consts.b);
+		y[yidx] = MUL(xval, consts.a) + MUL(yval, consts.b);
 	}
 }

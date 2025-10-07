@@ -610,3 +610,54 @@ def test_gemv_column_major():
 		
 		assert np.allclose(y_result, y_expected), f"failed on transpose type: {transpose}"
 
+ger_module = dev.load_shader(compile_shader("ger.glsl") )
+ger_pipeline = dev.create_pipeline(ger_module, "main", push_constants = np.zeros(8, dtype = np.uint32) )
+
+def invoke_ger(order, transpose, m, n, alpha, x_buf, incx, y_buf, incy, A_buf, lda):
+	# pack the push constants
+	push = np.array([order.value, transpose.value, m, n, 0, incx, incy, lda], dtype = np.uint32)
+	push.view(np.float32)[4] = alpha
+	ger_pipeline.dispatch([n, m, 1], [x_buf, y_buf, A_buf], push)
+	dev.sync()
+	
+
+def ger_reference(order, transpose, m, n, alpha, x_buf, incx, y_buf, incy, A_buf, lda):
+	if transpose == ETranspose.TRANSPOSE:
+		A_buf = A_buf.T
+	A_buf[:] = blas.sger(alpha, x_buf, y_buf, incx, incy, A_buf)
+
+def test_ger():
+	#raise NotImplementedError
+	for order in [EOrder.ROW_MAJOR, EOrder.COLUMN_MAJOR]:
+		for transpose in [ETranspose.NO_TRANSPOSE, ETranspose.TRANSPOSE]:
+			x = np.arange(4).astype(np.float32)
+			y = np.arange(8).astype(np.float32)
+			A = np.linspace(0.0, 1.0, num = 4*8, dtype = np.float32).reshape(4, 8)
+			if transpose == ETranspose.TRANSPOSE:
+				# modify the test to use a transposed matrix
+				A = A.reshape(8, 4)
+			
+			alpha = 0.5
+			m = x.size
+			n = y.size
+			# lda is the size of the contiguous dimension of A. Which in row major order is the row size, which is at index 1
+			lda = A.shape[1]
+			
+			# compute with shader
+			x_buf = dev.allocate_buffer(x.nbytes)
+			y_buf = dev.allocate_buffer(y.nbytes)
+			A_buf = dev.allocate_buffer(A.nbytes)
+			x_buf.copy_in(x)
+			y_buf.copy_in(y)
+			A_buf.copy_in(A)
+			invoke_ger(order, transpose, m, n, alpha, x_buf, 1, y_buf, 1, A_buf, lda)
+			A_result = np.zeros_like(A)
+			A_buf.copy_out(A_result)
+			
+			# compute output with reference implementation
+			A_expected = np.zeros_like(A)
+			A_expected[:] = A
+			ger_reference(order, transpose, m, n, alpha, x, 1, y, 1, A_expected, lda)
+			
+			assert np.allclose(A_expected, A_result), f"failed with order: {order}, transpose: {transpose}"
+	
