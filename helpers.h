@@ -1,6 +1,8 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
+#include "constants.h"
+
 uint compute_index(uint elem, uint size, int inc)
 {
 	int idx = 0;
@@ -27,9 +29,10 @@ uint compute_index(uint elem, uint size, int inc)
 
 }
 
-uint compute_mat_index(uint row_elem, uint column_elem)
+uint compute_mat_index(uint row_elem, uint column_elem, uint ld, uint order)
 {
-	return 0;
+	// rows are contiguous if ROW_MAJOR, columns are contiguous if COLUMN_MAJOR
+	return order == ROW_MAJOR ? row_elem + column_elem*ld : row_elem*ld + column_elem;
 }
 
 #endif

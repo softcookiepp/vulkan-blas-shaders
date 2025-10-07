@@ -35,27 +35,11 @@ void main()
 	uint xidx = compute_index(thread, LX, consts.incx);
 	
 	// index of A will be computed by using the row and column position.
-	// the column position will be the thread id, the row position will be the workgroup id.
-	// so the index of A will be...
-	uint Aidx = 0;
-	if (consts.order == ROW_MAJOR)
-	{
-		if (consts.transpose == NO_TRANSPOSE)
-			// not transposed
-			Aidx = group + thread*consts.lda;
-		else if (consts.transpose == TRANSPOSE)
-			// transposed, and thus the thread and group are reversed
-			Aidx = group*consts.lda + thread;
-	}
-	else if (consts.order == COLUMN_MAJOR)
-	{
-		if (consts.transpose == NO_TRANSPOSE)
-			// not transposed
-			Aidx = thread + group*consts.lda;
-		else if (consts.transpose == TRANSPOSE)
-			// transposed, and thus the thread and group are reversed
-			Aidx = thread*consts.lda + group;
-	}
+	// the column and row position will be dependent on the transpose status
+	
+	uint column_elem = consts.transpose == NO_TRANSPOSE ? thread : group;
+	uint row_elem = consts.transpose == NO_TRANSPOSE ? group : thread;
+	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.order);
 	
 	shared_mem[thread] = x[xidx] * A[Aidx];
 	barrier();
