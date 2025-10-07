@@ -504,7 +504,6 @@ def invoke_gemv(
 	gemv_pipeline = get_gemv_pipeline(m)
 	
 	# dispatch
-	input(n)
 	gemv_pipeline.dispatch([n, 1, 1], [x_buf, A_buf, y_buf], push)
 	dev.sync()
 
@@ -537,17 +536,17 @@ def test_gemv_row_major():
 		x = np.random.randn(4).astype(np.float32)
 		a_shape = (4, 8) if transpose == ETranspose.NO_TRANSPOSE else (8, 4)
 		A = np.random.randn(np.prod(a_shape)).reshape(*a_shape).astype(np.float32)
-		y = np.random.randn(8)
-		alpha = 0.0
+		y = np.random.randn(8).astype(np.float32)
+		alpha = 5.9
 		#beta = 5.48
-		beta = 0.0
+		beta = 2.4
 		
 		m = x.shape[0]
 		n = y.shape[0]
 		
 		# lda is whatever dimension that happens to be contiguous. If row-major, it is the row.
 		# If column-major, it is the column.
-		lda = n if transpose == ETranspose.NO_TRANSPOSE else n
+		lda = n if transpose == ETranspose.NO_TRANSPOSE else m
 		
 		# here we goes
 		x_buf = dev.allocate_buffer(x.nbytes)
@@ -562,9 +561,10 @@ def test_gemv_row_major():
 		y_expected[:] = y
 		reference_gemv(order, transpose, m, n, alpha, A, lda, x, 1, beta, y_expected, 1)
 		#if not transpose == ETranspose.TRANSPOSE:
-		#	y_result = alpha*np.dot(x, A) + beta*y
+		#	y_expected = alpha*np.dot(x, A) + beta*y
 		#else:
-		#	y_result = alpha*np.dot(x, A.T) + beta*y
+		#	y_expected = alpha*np.dot(x, A.T) + beta*y
 		y_result = np.zeros_like(y)
 		y_buf.copy_out(y_result)
+		
 		assert np.allclose(y_result, y_expected), f"failed on transpose type: {transpose}"
