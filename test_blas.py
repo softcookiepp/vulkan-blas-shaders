@@ -609,3 +609,4 @@ def test_gemv_column_major():
 		y_buf.copy_out(y_result)
 		
 		assert np.allclose(y_result, y_expected), f"failed on transpose type: {transpose}"
+
