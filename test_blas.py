@@ -4,6 +4,7 @@ import scipy.linalg.blas as blas
 import os
 import pytest
 import enum
+import copy
 
 tart = pytart.Instance()
 dev = tart.create_device(0)
@@ -534,10 +535,10 @@ def test_gemv_row_major():
 	# just do row major first, since python, C++, and literally everything else uses this natively
 	order = EOrder.ROW_MAJOR
 	for transpose in [ETranspose.NO_TRANSPOSE, ETranspose.TRANSPOSE]:
-		x = np.random.randn(4).astype(np.float32)
+		x = np.linspace(5.4, 20.1, num = 4).astype(np.float32)
 		a_shape = (4, 8) if transpose == ETranspose.NO_TRANSPOSE else (8, 4)
-		A = np.random.randn(np.prod(a_shape)).reshape(*a_shape).astype(np.float32)
-		y = np.random.randn(8).astype(np.float32)
+		A = np.linspace(0.0, 50.7, num = np.prod(a_shape)).reshape(*a_shape).astype(np.float32)
+		y = np.linspace(49.2, 100.78, num = 8).astype(np.float32)
 		alpha = 5.9
 		#beta = 5.48
 		beta = 2.4
@@ -574,10 +575,10 @@ def test_gemv_column_major():
 	# just do row major first, since python, C++, and literally everything else uses this natively
 	order = EOrder.COLUMN_MAJOR
 	for transpose in [ETranspose.NO_TRANSPOSE, ETranspose.TRANSPOSE]:
-		x = np.random.randn(4).astype(np.float32)
+		x = np.linspace(5.4, 20.1, num = 4).astype(np.float32)
 		a_shape = (8, 4) if transpose == ETranspose.NO_TRANSPOSE else (4, 8)
-		A = np.random.randn(np.prod(a_shape)).reshape(*a_shape).astype(np.float32)
-		y = np.random.randn(8).astype(np.float32)
+		A = np.linspace(0.0, 50.7, num = np.prod(a_shape)).reshape(*a_shape).astype(np.float32)
+		y = np.linspace(49.2, 100.78, num = 8).astype(np.float32)
 		alpha = 5.9
 		#beta = 5.48
 		beta = 2.4
@@ -627,6 +628,7 @@ def ger_reference(order, transpose, m, n, alpha, x_buf, incx, y_buf, incy, A_buf
 	A_buf[:] = blas.sger(alpha, x_buf, y_buf, incx, incy, A_buf)
 
 # this is also geru, etc.
+# still need to implement complex transposing :c
 def test_ger():
 	#raise NotImplementedError
 	for order in [EOrder.ROW_MAJOR, EOrder.COLUMN_MAJOR]:
@@ -661,4 +663,50 @@ def test_ger():
 			ger_reference(order, transpose, m, n, alpha, x, 1, y, 1, A_expected, lda)
 			
 			assert np.allclose(A_expected, A_result), f"failed with order: {order}, transpose: {transpose}"
+
+def strsv(matrix, y, overwrite_y=True):
+	if len(matrix.shape) != 2 or matrix.shape[0] != matrix.shape[1]:
+		raise ValueError("Input matrix must be square")
+	n = matrix.shape[0]
+	if overwrite_y:
+		x = y
+	else:
+		x = np.zeros(n)
+	if np.all(matrix.diagonal() == 0):
+		return x
+	for i in range(n-1, -1, -1):
+		x[i] = y[i]
+		for j in range(i-1, -1, -1):
+			y[j] -= matrix[j, i] * x[i]
+	return y
+	
+	
+
+	
+def test_trsv():
+	# currently implementing from reference: https://courses.grainger.illinois.edu/cs554/fa2015/notes/08_triangular_8up.pdf
+	b = np.arange(4).astype(np.float32)
+	A = np.random.randn(16).astype(np.float32).reshape(4, 4) + 1
+	x_L = np.zeros(4, dtype = np.float32)
+	
+	
+	L = np.tril(A)
+	
+	b_copy = np.zeros_like(b)
+	b_copy[:] = b[:]
+	for j in range(4):
+		x_L[j] = b_copy[j] / L[j, j]
+		for i in range(j, 4):
+			b_copy[i] = b_copy[i] - L[i, j]*x_L[j]
+	assert np.allclose(np.dot(L, x_L), b)
+	
+	b_copy[:] = b
+	U = np.triu(A)
+	x_U = np.zeros(4, dtype = np.float32)
+	for j in np.flip(np.arange(0, 4) ):
+		x_U[j] = b_copy[j]/U[j, j]
+		for i in range(j):
+			b_copy[i] = b_copy[i] - U[i, j]*x_U[j]
+	assert np.allclose(np.dot(U, x_U), b)
+	
 	
