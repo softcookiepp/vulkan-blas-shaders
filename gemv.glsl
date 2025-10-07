@@ -38,10 +38,10 @@ void main()
 	// the column position will be the thread id, the row position will be the workgroup id.
 	// so the index of A will be...
 	uint Aidx = 0;
-	if (consts.order == ROW_MAJOR)
+	if (consts.transpose == TRANSPOSE)
 		// not transposed
 		Aidx = group + thread*consts.lda;
-	else if (consts.order == COLUMN_MAJOR)
+	else if (consts.transpose == NO_TRANSPOSE)
 		// transposed, and thus the thread and group are reversed
 		Aidx = thread*consts.lda + group;
 	
@@ -63,4 +63,6 @@ void main()
 		FLOAT_T yval = y[yidx];
 		y[yidx] = (xval*consts.a) + (yval*consts.b);
 	}
+	
+	
 }
