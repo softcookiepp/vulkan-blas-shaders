@@ -476,7 +476,7 @@ gemv_module = dev.load_shader(compile_shader("gemv.glsl") )
 gemv_pipelines = {}
 def get_gemv_pipeline(column_size: int):
 	if not column_size in gemv_pipelines.keys():
-		ls = np.array([column_size, column_size], dtype = np.uint32)
+		ls = np.array([column_size], dtype = np.uint32)
 		gemv_pipelines[column_size] = dev.create_pipeline(gemv_module, "main", ls, np.zeros(7).astype(np.float32) )
 	return gemv_pipelines[column_size]
 	
