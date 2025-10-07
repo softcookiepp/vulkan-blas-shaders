@@ -23,32 +23,25 @@ layout(push_constant) uniform push
 
 void main()
 {
+	uint ypos = gl_WorkGroupID.x;
+	uint xpos = gl_WorkGroupID.y;
+	
+	// y is internally transposed.
+	uint xidx = compute_index(xpos, consts.m, consts.incx);
+	uint yidx = compute_index(ypos, consts.n, consts.incy);
+	
+	uint column_elem = 0;
+	uint row_elem = 0;
 	if (consts.order == ROW_MAJOR)
 	{
-		uint ypos = gl_WorkGroupID.x;
-		uint xpos = gl_WorkGroupID.y;
-		
-		// y is internally transposed.
-		uint xidx = compute_index(xpos, consts.m, consts.incx);
-		uint yidx = compute_index(ypos, consts.n, consts.incy);
-		
-		uint column_elem = consts.transpose == NO_TRANSPOSE ? xpos : ypos;
-		uint row_elem = consts.transpose == NO_TRANSPOSE ? ypos : xpos;
-		uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.order);
-		A[Aidx] = MUL(consts.alpha, MUL(x[xidx], y[yidx]) ) + A[Aidx];
+		column_elem = consts.transpose == NO_TRANSPOSE ? xpos : ypos;
+		row_elem = consts.transpose == NO_TRANSPOSE ? ypos : xpos;
 	}
 	else
-	{
-		uint ypos = gl_WorkGroupID.x;
-		uint xpos = gl_WorkGroupID.y;
-		
-		// y is internally transposed.
-		uint xidx = compute_index(xpos, consts.m, consts.incx);
-		uint yidx = compute_index(ypos, consts.n, consts.incy);
-		
-		uint column_elem = consts.transpose == NO_TRANSPOSE ? ypos : xpos;
-		uint row_elem = consts.transpose == NO_TRANSPOSE ? xpos : ypos;
-		uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.order);
-		A[Aidx] = MUL(consts.alpha, MUL(x[xidx], y[yidx]) ) + A[Aidx];
+	{	
+		column_elem = consts.transpose == NO_TRANSPOSE ? ypos : xpos;
+		row_elem = consts.transpose == NO_TRANSPOSE ? xpos : ypos;
 	}
+	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.order);
+	A[Aidx] = MUL(consts.alpha, MUL(x[xidx], y[yidx]) ) + A[Aidx];
 }

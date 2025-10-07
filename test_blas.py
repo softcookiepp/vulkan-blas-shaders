@@ -626,6 +626,7 @@ def ger_reference(order, transpose, m, n, alpha, x_buf, incx, y_buf, incy, A_buf
 		A_buf = A_buf.T
 	A_buf[:] = blas.sger(alpha, x_buf, y_buf, incx, incy, A_buf)
 
+# this is also geru, etc.
 def test_ger():
 	#raise NotImplementedError
 	for order in [EOrder.ROW_MAJOR, EOrder.COLUMN_MAJOR]:
