@@ -691,13 +691,14 @@ def test_trsv():
 	
 	
 	L = np.tril(A)
-	
 	b_copy = np.zeros_like(b)
 	b_copy[:] = b[:]
-	for j in range(4):
-		x_L[j] = b_copy[j] / L[j, j]
-		for i in range(j, 4):
+	for i in range(4):
+		# ok, this should be a lot more parallelizable
+		for j in range(i):
 			b_copy[i] = b_copy[i] - L[i, j]*x_L[j]
+		x_L[i] = b_copy[i] / L[i, i]
+		
 	assert np.allclose(np.dot(L, x_L), b)
 	
 	b_copy[:] = b
