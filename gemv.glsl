@@ -38,12 +38,24 @@ void main()
 	// the column position will be the thread id, the row position will be the workgroup id.
 	// so the index of A will be...
 	uint Aidx = 0;
-	if (consts.transpose == NO_TRANSPOSE)
-		// not transposed
-		Aidx = group + thread*consts.lda;
-	else if (consts.transpose == TRANSPOSE)
-		// transposed, and thus the thread and group are reversed
-		Aidx = group*consts.lda + thread;
+	if (consts.order == ROW_MAJOR)
+	{
+		if (consts.transpose == NO_TRANSPOSE)
+			// not transposed
+			Aidx = group + thread*consts.lda;
+		else if (consts.transpose == TRANSPOSE)
+			// transposed, and thus the thread and group are reversed
+			Aidx = group*consts.lda + thread;
+	}
+	else if (consts.order == COLUMN_MAJOR)
+	{
+		if (consts.transpose == NO_TRANSPOSE)
+			// not transposed
+			Aidx = thread + group*consts.lda;
+		else if (consts.transpose == TRANSPOSE)
+			// transposed, and thus the thread and group are reversed
+			Aidx = thread*consts.lda + group;
+	}
 	
 	shared_mem[thread] = x[xidx] * A[Aidx];
 	barrier();

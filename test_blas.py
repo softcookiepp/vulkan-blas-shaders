@@ -518,13 +518,14 @@ def reference_gemv(
 	):
 	# column major basically just means transposed by default.
 	# I am doing it internally here just so I don't lose my mind trying to keep track of multiple transposes
-	if not trans == ETranspose.TRANSPOSE:
-		# lda should be the row size if transposed (since rows become columns,) which with scipy's weird behavior will be the first shape element
-		#assert lda == m#A_buf.T.shape[0]
-		y_buf[:] = blas.sgemv(alpha, A_buf.T, x_buf, beta, y_buf)
+	if trans == ETranspose.NO_TRANSPOSE:
+		if order == EOrder.ROW_MAJOR:
+			A_buf = A_buf.T
+		y_buf[:] = blas.sgemv(alpha, A_buf, x_buf, beta, y_buf)
 	else:
 		# lda should be the column size if not transposed, which with scipy's weird behavior will be the second shape element
-		#assert lda == n#A_buf.shape[1]
+		if order == EOrder.COLUMN_MAJOR:
+			A_buf = A_buf.T
 		y_buf[:] = blas.sgemv(alpha, A_buf, x_buf, beta, y_buf)
 	
 
@@ -564,6 +565,46 @@ def test_gemv_row_major():
 		#	y_expected = alpha*np.dot(x, A) + beta*y
 		#else:
 		#	y_expected = alpha*np.dot(x, A.T) + beta*y
+		y_result = np.zeros_like(y)
+		y_buf.copy_out(y_result)
+		
+		assert np.allclose(y_result, y_expected), f"failed on transpose type: {transpose}"
+
+def test_gemv_column_major():
+	# just do row major first, since python, C++, and literally everything else uses this natively
+	order = EOrder.COLUMN_MAJOR
+	for transpose in [ETranspose.NO_TRANSPOSE, ETranspose.TRANSPOSE]:
+		x = np.random.randn(4).astype(np.float32)
+		a_shape = (8, 4) if transpose == ETranspose.NO_TRANSPOSE else (4, 8)
+		A = np.random.randn(np.prod(a_shape)).reshape(*a_shape).astype(np.float32)
+		y = np.random.randn(8).astype(np.float32)
+		alpha = 5.9
+		#beta = 5.48
+		beta = 2.4
+		
+		m = x.shape[0]
+		n = y.shape[0]
+		
+		# lda is whatever dimension that happens to be contiguous. If row-major, it is the row.
+		# If column-major, it is the column.
+		lda = m if transpose == ETranspose.NO_TRANSPOSE else n
+		
+		# here we goes
+		x_buf = dev.allocate_buffer(x.nbytes)
+		A_buf = dev.allocate_buffer(A.nbytes)
+		y_buf = dev.allocate_buffer(y.nbytes)
+		x_buf.copy_in(x)
+		A_buf.copy_in(A)
+		y_buf.copy_in(y)
+		invoke_gemv(order, transpose, m, n, alpha, A_buf, lda, x_buf, 1, beta, y_buf, 1)
+		
+		y_expected = np.zeros_like(y)
+		y_expected[:] = y
+		reference_gemv(order, transpose, m, n, alpha, A, lda, x, 1, beta, y_expected, 1)
+		if not transpose == ETranspose.TRANSPOSE:
+			y_expected = alpha*np.dot(x, A.T) + beta*y
+		else:
+			y_expected = alpha*np.dot(x, A) + beta*y
 		y_result = np.zeros_like(y)
 		y_buf.copy_out(y_result)
 		
