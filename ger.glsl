@@ -11,8 +11,7 @@ layout(set = 0, binding = 2) buffer A_buf { FLOAT_T A[]; };
 
 layout(push_constant) uniform push
 {
-	uint order;
-	uint transpose;
+	bool transpose;
 	uint m; // A column size, x size
 	uint n; // A row size, y size
 	FLOAT_T alpha;
@@ -29,19 +28,10 @@ void main()
 	// y is internally transposed.
 	uint xidx = compute_index(xpos, consts.m, consts.incx);
 	uint yidx = compute_index(ypos, consts.n, consts.incy);
-	
-	uint column_elem = 0;
-	uint row_elem = 0;
-	if (consts.order == ROW_MAJOR)
-	{
-		column_elem = consts.transpose == NO_TRANSPOSE ? xpos : ypos;
-		row_elem = consts.transpose == NO_TRANSPOSE ? ypos : xpos;
-	}
-	else
-	{	
-		column_elem = consts.transpose == NO_TRANSPOSE ? ypos : xpos;
-		row_elem = consts.transpose == NO_TRANSPOSE ? xpos : ypos;
-	}
-	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.order);
+
+	uint column_elem = consts.transpose ? ypos : xpos;
+	uint row_elem = consts.transpose ? xpos : ypos;
+	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.transpose);
+
 	A[Aidx] = MUL(consts.alpha, MUL(x[xidx], y[yidx]) ) + A[Aidx];
 }

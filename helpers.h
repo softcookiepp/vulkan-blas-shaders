@@ -30,10 +30,10 @@ uint compute_index(uint elem, uint size, int inc)
 
 }
 
-uint compute_mat_index(uint row_elem, uint column_elem, uint ld, uint order)
+uint compute_mat_index(uint row_elem, uint column_elem, uint ld, bool transpose)
 {
 	// rows are contiguous if ROW_MAJOR, columns are contiguous if COLUMN_MAJOR
-	return order == ROW_MAJOR ? row_elem + column_elem*ld : row_elem*ld + column_elem;
+	return transpose ? row_elem*ld + column_elem : row_elem + column_elem*ld;
 }
 
 #endif

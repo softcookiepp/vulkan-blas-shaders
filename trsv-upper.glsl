@@ -22,33 +22,34 @@ void main()
 	
 	// store the entirety of x locally first
 	FLOAT_T x_local[N];
-	uint xidx_i = 0;
-	for (uint i = 0; i < N; i += 1)
+	uint xidx_j = 0;
+	for (uint j = 0; j < N; j += 1)
 	{
-		xidx_i = compute_index(i, N, consts.incx);
-		x_local[i] = x[xidx_i];
+		xidx_j = compute_index(j, N, consts.incx);
+		x_local[j] = x[xidx_j];
 	}
+	barrier();
 	
 	// compute the solution
 	uint Aidx;
-	for (uint i = 0; i < N; i += 1)
+	for (uint jr = N; jr > 0; jr -= 1)
 	{
-		compute_index(i, N, consts.incx);
-		FLOAT_T x_i = x_local[i];
+		uint j = jr - 1;
+		Aidx = compute_mat_index(j, j, consts.lda, consts.transpose);
+		FLOAT_T xlj = x_local[j] / A[Aidx];
 		
-		for (uint j = 0; j < i; j += 1)
+		for (uint i = 0; i < j; i += 1)
 		{
 			Aidx = compute_mat_index(j, i, consts.lda, consts.transpose);
-			x_i = x_i - A[Aidx]*x_local[j];
+			x_local[i] = x_local[i] - A[Aidx]*xlj;
 		}
-		Aidx = compute_mat_index(i, i, consts.lda, consts.transpose);
-		x_local[i] = x_i/A[Aidx];
+		x_local[j] = xlj;
 	}
 	
 	// write everything out
-	for (uint i = 0; i < N; i += 1)
+	for (uint j = 0; j < N; j += 1)
 	{
-		xidx_i = compute_index(i, N, consts.incx);
-		x[xidx_i] = x_local[i];
+		xidx_j = compute_index(j, N, consts.incx);
+		x[xidx_j] = x_local[j];
 	}
 }

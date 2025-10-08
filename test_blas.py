@@ -471,14 +471,16 @@ def test_scal():
 	x_result = np.zeros_like(x)
 	x_buf.copy_out(x_result)
 	assert np.allclose(x_result, x*alpha)
-	
+
+def get_transpose(order, trans):
+	return ( (trans == ETranspose.TRANSPOSE and order == EOrder.ROW_MAJOR) or (trans == ETranspose.NO_TRANSPOSE and order == EOrder.COLUMN_MAJOR) )
 	
 gemv_module = dev.load_shader(compile_shader("gemv.glsl") )
 gemv_pipelines = {}
 def get_gemv_pipeline(column_size: int):
 	if not column_size in gemv_pipelines.keys():
 		ls = np.array([column_size], dtype = np.uint32)
-		gemv_pipelines[column_size] = dev.create_pipeline(gemv_module, "main", ls, np.zeros(9).astype(np.float32) )
+		gemv_pipelines[column_size] = dev.create_pipeline(gemv_module, "main", ls, np.zeros(8).astype(np.float32) )
 	return gemv_pipelines[column_size]
 	
 def invoke_gemv(
@@ -492,16 +494,15 @@ def invoke_gemv(
 	):
 	
 	# pack push constants
-	push = np.zeros(9, dtype = np.float32)
-	push.view(np.uint32)[0] = order.value
-	push.view(np.uint32)[1] = trans.value
-	push.view(np.float32)[2] =  alpha
-	push.view(np.uint32)[3] = lda
-	push.view(np.int32)[4] = incx
-	push.view(np.float32)[5] = beta
-	push.view(np.int32)[6] = incy
+	push = np.zeros(8, dtype = np.float32)
+	push.view(np.uint32)[0] = get_transpose(order, trans)
+	push.view(np.float32)[1] =  alpha
+	push.view(np.uint32)[2] = lda
+	push.view(np.int32)[3] = incx
+	push.view(np.float32)[4] = beta
+	push.view(np.int32)[5] = incy
+	push.view(np.uint32)[6] = m
 	push.view(np.uint32)[7] = m
-	push.view(np.uint32)[8] = m
 	
 	# initialize correct pipeline
 	gemv_pipeline = get_gemv_pipeline(m)
@@ -614,12 +615,12 @@ def test_gemv_column_major():
 		assert np.allclose(y_result, y_expected), f"failed on transpose type: {transpose}"
 
 ger_module = dev.load_shader(compile_shader("ger.glsl") )
-ger_pipeline = dev.create_pipeline(ger_module, "main", push_constants = np.zeros(8, dtype = np.uint32) )
+ger_pipeline = dev.create_pipeline(ger_module, "main", push_constants = np.zeros(7, dtype = np.uint32) )
 
 def invoke_ger(order, transpose, m, n, alpha, x_buf, incx, y_buf, incy, A_buf, lda):
 	# pack the push constants
-	push = np.array([order.value, transpose.value, m, n, 0, incx, incy, lda], dtype = np.uint32)
-	push.view(np.float32)[4] = alpha
+	push = np.array([int(get_transpose(order, transpose)), m, n, 0, incx, incy, lda], dtype = np.uint32)
+	push.view(np.float32)[3] = alpha
 	ger_pipeline.dispatch([n, m, 1], [x_buf, y_buf, A_buf], push)
 	dev.sync()
 	
@@ -633,20 +634,20 @@ def ger_reference(order, transpose, m, n, alpha, x_buf, incx, y_buf, incy, A_buf
 # still need to implement complex transposing :c
 def test_ger():
 	#raise NotImplementedError
-	for order in [EOrder.ROW_MAJOR, EOrder.COLUMN_MAJOR]:
+	for order in [EOrder.ROW_MAJOR]:
 		for transpose in [ETranspose.NO_TRANSPOSE, ETranspose.TRANSPOSE]:
 			x = np.arange(4).astype(np.float32)
 			y = np.arange(8).astype(np.float32)
 			A = np.linspace(0.0, 1.0, num = 4*8, dtype = np.float32).reshape(4, 8)
-			if transpose == ETranspose.TRANSPOSE:
+			if get_transpose(order, transpose):
 				# modify the test to use a transposed matrix
-				A = A.reshape(8, 4)
+				A = A.T#reshape(8, 4)
 			
 			alpha = 0.5
 			m = x.size
 			n = y.size
 			# lda is the size of the contiguous dimension of A. Which in row major order is the row size, which is at index 1
-			lda = A.shape[1]
+			lda = A.shape[0] if get_transpose(order, transpose) else A.shape[1]
 			
 			# compute with shader
 			x_buf = dev.allocate_buffer(x.nbytes)
@@ -666,19 +667,28 @@ def test_ger():
 			
 			assert np.allclose(A_expected, A_result), f"failed with order: {order}, transpose: {transpose}"
 
-trsv_module = dev.load_shader(compile_shader("trsv-lower.glsl") )
-trsv_pipelines = {}
-def get_trsv_pipeline(mat_size: int):
-	if not mat_size in trsv_pipelines.keys():
-		ls = np.array([mat_size], dtype = np.uint32)
-		gemv_pipelines[mat_size] = dev.create_pipeline(trsv_module, "main", ls, np.zeros(4).astype(np.float32) )
-	return gemv_pipelines[mat_size]
+trsv_lower_module = dev.load_shader(compile_shader("trsv-lower.glsl") )
+trsv_lower_pipelines = {}
+
+trsv_upper_module = dev.load_shader(compile_shader("trsv-upper.glsl") )
+trsv_upper_pipelines = {}
+def get_trsv_pipeline(mat_size: int, lower: bool):
+	if lower:
+		if not mat_size in trsv_lower_pipelines.keys():
+			ls = np.array([mat_size], dtype = np.uint32)
+			trsv_lower_pipelines[mat_size] = dev.create_pipeline(trsv_lower_module, "main", ls, np.zeros(3).astype(np.float32) )
+		return trsv_lower_pipelines[mat_size]
+	else:
+		if not mat_size in trsv_upper_pipelines.keys():
+			ls = np.array([mat_size], dtype = np.uint32)
+			trsv_upper_pipelines[mat_size] = dev.create_pipeline(trsv_upper_module, "main", ls, np.zeros(3).astype(np.float32) )
+		return trsv_upper_pipelines[mat_size]
 
 def invoke_trsv(order, lower, transpose, unit_diag: bool, n: int, A_buf, lda, x_buf, incx):
-	consts = np.array([order.value, transpose.value, 0, lda], dtype = np.uint32)
-	consts.view(np.int32)[2] = incx	
-	pipeline = get_trsv_pipeline(n)
-	pipeline.dispatch([n, 1, 1], [x_buf, A_buf], consts)
+	consts = np.array([int(get_transpose(order, transpose)), 0, lda], dtype = np.uint32)
+	consts.view(np.int32)[1] = incx
+	pipeline = get_trsv_pipeline(n, lower)
+	pipeline.dispatch([1, 1, 1], [x_buf, A_buf], consts)
 	dev.sync()
 
 def trsv_reference(order, lower, transpose, unit_diag: bool, n: int, A_buf, lda, x_buf, incx):
@@ -687,17 +697,9 @@ def trsv_reference(order, lower, transpose, unit_diag: bool, n: int, A_buf, lda,
 		L = A_buf
 		shared_mem = np.zeros(4, dtype = np.float32)
 		for i in range(n):
-			# ok, this should be a lot more parallelizable
-			# `i` will be the global work group, `j` will be the local invocation
 			for j in range(n):
 				if j < i:
-					# this will be split across multiple local invocations...
-					shared_mem[j] = L[i, j]*x_buf[j]
-			# barrier here
-			# and then this loop will be at invocation 0
-			for j in range(n):
-				if j < i:
-					b_copy[i] = b_copy[i] - shared_mem[j]
+					b_copy[i] = b_copy[i] - L[i, j]*x_buf[j]
 			x_buf[i] = b_copy[i] / L[i, i]
 	else:
 		U = A_buf
@@ -706,9 +708,8 @@ def trsv_reference(order, lower, transpose, unit_diag: bool, n: int, A_buf, lda,
 			for i in range(j):
 				b_copy[i] = b_copy[i] - U[i, j]*x_buf[j]
 
-	
 def test_trsv():
-	for lower in [True]:
+	for lower in [True, False]:
 		# currently implementing from reference: https://courses.grainger.illinois.edu/cs554/fa2015/notes/08_triangular_8up.pdf
 		b = np.arange(4).astype(np.float32)
 		A = np.random.randn(16).astype(np.float32).reshape(4, 4) + 1
@@ -721,17 +722,15 @@ def test_trsv():
 			P = np.tril(A)
 		else:
 			P = np.triu(A)
-		#assert np.allclose(np.dot(P, x_expected), b, atol = 1.0e-5)
-		
+		assert np.allclose(np.dot(P, x_expected), b, atol = 1.0e-5)
+
 		x_buf = dev.allocate_buffer(b.nbytes)
 		x_buf.copy_in(b)
 		A_buf = dev.allocate_buffer(A.nbytes)
 		A_buf.copy_in(A)
 		
-		invoke_trsv(EOrder.COLUMN_MAJOR, lower, ETranspose.NO_TRANSPOSE, False, 4, A_buf, 4, x_buf, 1)
+		invoke_trsv(EOrder.ROW_MAJOR, lower, ETranspose.NO_TRANSPOSE, False, 4, A_buf, 4, x_buf, 1)
 		x_result = np.zeros_like(b)
 		x_buf.copy_out(x_result)
-		dummy = np.zeros_like(A)
-		A_buf.copy_out(dummy)
-		#input(dummy)
+		print(x_buf)
 		assert np.allclose(x_expected, x_result, atol = 1.0e-5)

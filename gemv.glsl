@@ -11,8 +11,7 @@ layout(set = 0, binding = 2) buffer y_buf { FLOAT_T y[]; };
 
 layout(push_constant) uniform push
 {
-	uint order;
-	uint transpose;
+	bool transpose;
 	FLOAT_T a;
 	uint lda;
 	int incx;
@@ -26,27 +25,25 @@ shared FLOAT_T shared_mem[LX];
 
 void main()
 {
-	uint group = gl_WorkGroupID.x;
-	uint thread = gl_LocalInvocationID.x;
+	uint row_elem = gl_WorkGroupID.x;
+	uint column_elem = gl_LocalInvocationID.x;
 	
 	// each column of A will only be used once.
 	// the entirety of x will be used for every computed value of y
 	// which means, the partial sums of elements of x and A will be stored in shared memory.
 	// TODO: if A is too large, the system may run out of shared memory. Take this into account...
-	uint xidx = compute_index(thread, LX, consts.incx);
+	uint xidx = compute_index(column_elem, LX, consts.incx);
 	
 	// index of A will be computed by using the row and column position.
 	// the column and row position will be dependent on the transpose status
 	
-	uint column_elem = consts.transpose == NO_TRANSPOSE ? thread : group;
-	uint row_elem = consts.transpose == NO_TRANSPOSE ? group : thread;
-	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.order);
+	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.transpose);
 	
-	shared_mem[thread] = MUL(x[xidx], A[Aidx]);
+	shared_mem[column_elem] = MUL(x[xidx], A[Aidx]);
 	barrier();
 	
 	// from here on out, only the first thread will need to do anything
-	if (thread == 0)
+	if (column_elem == 0)
 	{
 		// sum all the partials
 		FLOAT_T xval = 0.0;
@@ -56,7 +53,7 @@ void main()
 		}
 		
 		// compute the final result
-		uint yidx = compute_index(group, consts.m, consts.incy);
+		uint yidx = compute_index(row_elem, consts.m, consts.incy);
 		FLOAT_T yval = y[yidx];
 		y[yidx] = MUL(xval, consts.a) + MUL(yval, consts.b);
 	}
