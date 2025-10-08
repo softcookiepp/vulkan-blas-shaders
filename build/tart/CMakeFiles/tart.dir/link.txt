@@ -1,0 +1,2 @@
+/usr/bin/ar qc libtart.a "CMakeFiles/tart.dir/src/tart-gpu.cpp.o" "CMakeFiles/tart.dir/src/tart-vk-helpers.cpp.o" "CMakeFiles/tart.dir/src/tart-compilers.cpp.o" "CMakeFiles/tart.dir/src/tart-internal.cpp.o" "CMakeFiles/tart.dir/src/tart-device.cpp.o" "CMakeFiles/tart.dir/src/tart-shader.cpp.o"
+/usr/bin/ranlib libtart.a
