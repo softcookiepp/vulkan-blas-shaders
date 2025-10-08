@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG "CMakeFiles/test-blas.dir/test-blas.cpp.o" -o test-blas  tart/libtart.a tart/subprocess/src/cpp/libsubprocess.a -lstdc++fs -ldl /usr/lib/x86_64-linux-gnu/libvulkan.so /usr/lib/x86_64-linux-gnu/libblas.so 

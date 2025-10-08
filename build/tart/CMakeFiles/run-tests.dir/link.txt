@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG "CMakeFiles/run-tests.dir/tests/tests.cpp.o" -o run-tests  libtart.a subprocess/src/cpp/libsubprocess.a -lstdc++fs -ldl /usr/lib/x86_64-linux-gnu/libvulkan.so 
