@@ -734,3 +734,10 @@ def test_trsv():
 		x_buf.copy_out(x_result)
 		print(x_buf)
 		assert np.allclose(x_expected, x_result, atol = 1.0e-5)
+
+# not doing trmv for now, as there is little utility
+
+def test_syr():
+	pass# raise NotImplementedError
+	
+	
