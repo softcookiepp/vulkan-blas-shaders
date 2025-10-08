@@ -19,6 +19,6 @@ macro(compile_glsl)
 	add_custom_target(${ARGV0} DEPENDS ${ARGV2})
 endmacro()
 
-add_executable(test-blas test-blas.cpp)
+add_executable(test-blas tests/test-blas.cpp)
 target_link_libraries(test-blas PUBLIC tart)
 target_link_libraries(test-blas PRIVATE BLAS::BLAS)
