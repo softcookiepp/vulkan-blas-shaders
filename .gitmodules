@@ -1,0 +1,6 @@
+[submodule "doctest"]
+	path = doctest
+	url = https://github.com/doctest/doctest.git
+[submodule "tart"]
+	path = tart
+	url = https://codeberg.org/softcookiepp/tart.git
