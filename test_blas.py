@@ -732,7 +732,6 @@ def test_trsv():
 		invoke_trsv(EOrder.ROW_MAJOR, lower, ETranspose.NO_TRANSPOSE, False, 4, A_buf, 4, x_buf, 1)
 		x_result = np.zeros_like(b)
 		x_buf.copy_out(x_result)
-		print(x_buf)
 		assert np.allclose(x_expected, x_result, atol = 1.0e-5)
 
 # not doing trmv for now, as there is little utility

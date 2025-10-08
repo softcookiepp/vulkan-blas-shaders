@@ -1,15 +1,18 @@
 #ifndef TARTBLAS_TESTS_DOCTEST_INCLUDE
 #define TARTBLAS_TESTS_DOCTEST_INCLUDE
 #include <chrono>
-//#include "../doctest/doctest/doctest.h"
 #include <stdexcept>
-#include "../tart/include/tart.hpp"
+#include <string>
 
-tart::Instance gTartInstance;
-
-tart::device_ptr getTestDevice()
+template <typename T>
+void ASSERT_EQUAL(T& a, T& b)
 {
-	return gTartInstance.createDevice(0);
+	if (a != b) throw std::runtime_error("assertion failed!");
+}
+
+void START_TEST(std::string title)
+{
+	std::cout << "\nStarting test: " << title << std::endl;
 }
 
 #endif
