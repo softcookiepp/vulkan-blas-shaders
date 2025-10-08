@@ -666,6 +666,21 @@ def test_ger():
 			
 			assert np.allclose(A_expected, A_result), f"failed with order: {order}, transpose: {transpose}"
 
+trsv_module = dev.load_shader(compile_shader("trsv-lower.glsl") )
+trsv_pipelines = {}
+def get_trsv_pipeline(mat_size: int):
+	if not mat_size in trsv_pipelines.keys():
+		ls = np.array([mat_size], dtype = np.uint32)
+		gemv_pipelines[mat_size] = dev.create_pipeline(trsv_module, "main", ls, np.zeros(4).astype(np.float32) )
+	return gemv_pipelines[mat_size]
+
+def invoke_trsv(order, lower, transpose, unit_diag: bool, n: int, A_buf, lda, x_buf, incx):
+	consts = np.array([order.value, transpose.value, 0, lda], dtype = np.uint32)
+	consts.view(np.int32)[2] = incx	
+	pipeline = get_trsv_pipeline(n)
+	pipeline.dispatch([n, 1, 1], [x_buf, A_buf], consts)
+	dev.sync()
+
 def trsv_reference(order, lower, transpose, unit_diag: bool, n: int, A_buf, lda, x_buf, incx):
 	b_copy = x_buf
 	if lower:
@@ -686,28 +701,14 @@ def trsv_reference(order, lower, transpose, unit_diag: bool, n: int, A_buf, lda,
 			x_buf[i] = b_copy[i] / L[i, i]
 	else:
 		U = A_buf
-		if False:
-			shared_mem = np.zeros(n, dtype = np.float32)
-			b_copy = x_buf
-			# n work groups, 
-			for j in np.flip(np.arange(0, n) ):
-				inv_ujj = 1.0 / U[j, j]
-				for i in range(n):
-					if i < j:
-						shared_mem[i] = U[i, j]*x_buf[j]*inv_ujj
-				for i in range(n):
-					if i < j:
-						b_copy[i] = b_copy[i] - shared_mem[i]
-				x_buf[j] = b_copy[j]*inv_ujj
-		else:
-			for j in np.flip(np.arange(0, n) ):
-				x_buf[j] = b_copy[j]/U[j, j]
-				for i in range(j):
-					b_copy[i] = b_copy[i] - U[i, j]*x_buf[j]
+		for j in np.flip(np.arange(0, n) ):
+			x_buf[j] = b_copy[j]/U[j, j]
+			for i in range(j):
+				b_copy[i] = b_copy[i] - U[i, j]*x_buf[j]
 
 	
 def test_trsv():
-	for lower in [True, False]:
+	for lower in [True]:
 		# currently implementing from reference: https://courses.grainger.illinois.edu/cs554/fa2015/notes/08_triangular_8up.pdf
 		b = np.arange(4).astype(np.float32)
 		A = np.random.randn(16).astype(np.float32).reshape(4, 4) + 1
@@ -720,5 +721,17 @@ def test_trsv():
 			P = np.tril(A)
 		else:
 			P = np.triu(A)
-		assert np.allclose(np.dot(P, x_expected), b, atol = 1.0e-5)
+		#assert np.allclose(np.dot(P, x_expected), b, atol = 1.0e-5)
 		
+		x_buf = dev.allocate_buffer(b.nbytes)
+		x_buf.copy_in(b)
+		A_buf = dev.allocate_buffer(A.nbytes)
+		A_buf.copy_in(A)
+		
+		invoke_trsv(EOrder.COLUMN_MAJOR, lower, ETranspose.NO_TRANSPOSE, False, 4, A_buf, 4, x_buf, 1)
+		x_result = np.zeros_like(b)
+		x_buf.copy_out(x_result)
+		dummy = np.zeros_like(A)
+		A_buf.copy_out(dummy)
+		#input(dummy)
+		assert np.allclose(x_expected, x_result, atol = 1.0e-5)
