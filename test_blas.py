@@ -478,7 +478,7 @@ gemv_pipelines = {}
 def get_gemv_pipeline(column_size: int):
 	if not column_size in gemv_pipelines.keys():
 		ls = np.array([column_size], dtype = np.uint32)
-		gemv_pipelines[column_size] = dev.create_pipeline(gemv_module, "main", ls, np.zeros(7).astype(np.float32) )
+		gemv_pipelines[column_size] = dev.create_pipeline(gemv_module, "main", ls, np.zeros(9).astype(np.float32) )
 	return gemv_pipelines[column_size]
 	
 def invoke_gemv(
@@ -492,14 +492,16 @@ def invoke_gemv(
 	):
 	
 	# pack push constants
-	push = np.zeros(7, dtype = np.float32)
-	push.view(np.uint32)[0] = order.value;
-	push.view(np.uint32)[1] = trans.value;
-	push.view(np.float32)[2] =  alpha;
-	push.view(np.uint32)[3] = lda;
-	push.view(np.int32)[4] = incx;
-	push.view(np.float32)[5] = beta;
-	push.view(np.int32)[6] = incy;
+	push = np.zeros(9, dtype = np.float32)
+	push.view(np.uint32)[0] = order.value
+	push.view(np.uint32)[1] = trans.value
+	push.view(np.float32)[2] =  alpha
+	push.view(np.uint32)[3] = lda
+	push.view(np.int32)[4] = incx
+	push.view(np.float32)[5] = beta
+	push.view(np.int32)[6] = incy
+	push.view(np.uint32)[7] = m
+	push.view(np.uint32)[8] = m
 	
 	# initialize correct pipeline
 	gemv_pipeline = get_gemv_pipeline(m)
@@ -664,50 +666,59 @@ def test_ger():
 			
 			assert np.allclose(A_expected, A_result), f"failed with order: {order}, transpose: {transpose}"
 
-def strsv(matrix, y, overwrite_y=True):
-	if len(matrix.shape) != 2 or matrix.shape[0] != matrix.shape[1]:
-		raise ValueError("Input matrix must be square")
-	n = matrix.shape[0]
-	if overwrite_y:
-		x = y
+def trsv_reference(order, lower, transpose, unit_diag: bool, n: int, A_buf, lda, x_buf, incx):
+	b_copy = x_buf
+	if lower:
+		L = A_buf
+		shared_mem = np.zeros(4, dtype = np.float32)
+		for i in range(n):
+			# ok, this should be a lot more parallelizable
+			# `i` will be the global work group, `j` will be the local invocation
+			for j in range(n):
+				if j < i:
+					# this will be split across multiple local invocations...
+					shared_mem[j] = L[i, j]*x_buf[j]
+			# barrier here
+			# and then this loop will be at invocation 0
+			for j in range(n):
+				if j < i:
+					b_copy[i] = b_copy[i] - shared_mem[j]
+			x_buf[i] = b_copy[i] / L[i, i]
 	else:
-		x = np.zeros(n)
-	if np.all(matrix.diagonal() == 0):
-		return x
-	for i in range(n-1, -1, -1):
-		x[i] = y[i]
-		for j in range(i-1, -1, -1):
-			y[j] -= matrix[j, i] * x[i]
-	return y
-	
-	
+		U = A_buf
+		if False:
+			shared_mem = np.zeros(n, dtype = np.float32)
+			b_copy = x_buf
+			# n work groups, 
+			for j in np.flip(np.arange(0, n) ):
+				inv_ujj = 1.0 / U[j, j]
+				for i in range(n):
+					if i < j:
+						shared_mem[i] = U[i, j]*x_buf[j]*inv_ujj
+				for i in range(n):
+					if i < j:
+						b_copy[i] = b_copy[i] - shared_mem[i]
+				x_buf[j] = b_copy[j]*inv_ujj
+		else:
+			for j in np.flip(np.arange(0, n) ):
+				x_buf[j] = b_copy[j]/U[j, j]
+				for i in range(j):
+					b_copy[i] = b_copy[i] - U[i, j]*x_buf[j]
 
 	
 def test_trsv():
-	# currently implementing from reference: https://courses.grainger.illinois.edu/cs554/fa2015/notes/08_triangular_8up.pdf
-	b = np.arange(4).astype(np.float32)
-	A = np.random.randn(16).astype(np.float32).reshape(4, 4) + 1
-	x_L = np.zeros(4, dtype = np.float32)
-	
-	
-	L = np.tril(A)
-	b_copy = np.zeros_like(b)
-	b_copy[:] = b[:]
-	for i in range(4):
-		# ok, this should be a lot more parallelizable
-		for j in range(i):
-			b_copy[i] = b_copy[i] - L[i, j]*x_L[j]
-		x_L[i] = b_copy[i] / L[i, i]
+	for lower in [True, False]:
+		# currently implementing from reference: https://courses.grainger.illinois.edu/cs554/fa2015/notes/08_triangular_8up.pdf
+		b = np.arange(4).astype(np.float32)
+		A = np.random.randn(16).astype(np.float32).reshape(4, 4) + 1
 		
-	assert np.allclose(np.dot(L, x_L), b)
-	
-	b_copy[:] = b
-	U = np.triu(A)
-	x_U = np.zeros(4, dtype = np.float32)
-	for j in np.flip(np.arange(0, 4) ):
-		x_U[j] = b_copy[j]/U[j, j]
-		for i in range(j):
-			b_copy[i] = b_copy[i] - U[i, j]*x_U[j]
-	assert np.allclose(np.dot(U, x_U), b)
-	
-	
+		x_expected = np.zeros(4, dtype = np.float32)
+		x_expected[:] = b
+		trsv_reference(EOrder.ROW_MAJOR, lower, False, False, 4, A, 4, x_expected, 1)
+		
+		if lower:
+			P = np.tril(A)
+		else:
+			P = np.triu(A)
+		assert np.allclose(np.dot(P, x_expected), b, atol = 1.0e-5)
+		

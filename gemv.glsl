@@ -18,6 +18,8 @@ layout(push_constant) uniform push
 	int incx;
 	FLOAT_T b;
 	int incy;
+	uint m;
+	uint n;
 } consts;
 
 shared FLOAT_T shared_mem[LX];
@@ -54,7 +56,7 @@ void main()
 		}
 		
 		// compute the final result
-		uint yidx = compute_index(group, 8, consts.incy);
+		uint yidx = compute_index(group, consts.m, consts.incy);
 		FLOAT_T yval = y[yidx];
 		y[yidx] = MUL(xval, consts.a) + MUL(yval, consts.b);
 	}
