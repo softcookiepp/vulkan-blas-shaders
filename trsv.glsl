@@ -32,18 +32,19 @@ void main()
 		xidx = compute_index(j, N, consts.incx);
 		x_local[j] = x[xidx];
 	}
-#if 0
+#if 1
 	FLOAT_T A_local[N][N];
 	// load A into local memory
 	for (uint i = 0; i < N; i += 1)
 	{
 		for (uint j = 0; j < N; j += 1)
 		{
-			Aidx = compute_mat_index(j, i, consts.lda, consts.transpose);
+			
 			if (consts.transpose)
-				A_local[j][i] = A[Aidx];
+				Aidx = compute_mat_index(i, j, consts.lda, consts.column_major);
 			else
-				A_local[i][j] = A[Aidx];
+				Aidx = compute_mat_index(j, i, consts.lda, consts.column_major);
+			A_local[j][i] = A[Aidx];
 		}
 	}
 #endif
@@ -71,18 +72,38 @@ void main()
 	{	
 		// algorithm for upper triangular matrix
 		// compute the solution
-		for (uint j = 0; j < N; j += 1)
+		if(!consts.transpose)
 		{
-			uint j2 = consts.transpose ? j : N - j - 1;
-			Aidx = compute_mat_index(j, j, consts.lda, consts.column_major);
-			FLOAT_T xlj = x_local[j] / A[Aidx];
-			
-			for (uint i = 0; i < j; i += 1)
+			for (uint jr = N; jr > 0; jr -= 1)
 			{
-				Aidx = compute_mat_index(i, j, consts.lda, consts.column_major);
-				x_local[i] = x_local[i] - A[Aidx]*xlj;
+				uint j = jr - 1;
+				Aidx = compute_mat_index(j, j, consts.lda, consts.column_major);
+				FLOAT_T xlj = x_local[j] / A[Aidx];
+				
+				for (uint i = 0; i < j; i += 1)
+				{
+					Aidx = compute_mat_index(j, i, consts.lda, consts.column_major);
+					x_local[i] = x_local[i] - A[Aidx]*xlj;
+				}
+				x_local[j] = xlj;
 			}
-			x_local[j] = xlj;
+		}
+		else
+		{
+			for (uint jr = N; jr > 0; jr -= 1)
+			{
+				uint j = jr - 1;
+				Aidx = compute_mat_index(j, j, consts.lda, consts.column_major);
+				FLOAT_T xlj = x_local[j] / A_local[j][j];
+				
+				for (uint i = 0; i < j; i += 1)
+				{
+					//Aidx = compute_mat_index(j, i, consts.lda, consts.column_major);
+					//x_local[i] = x_local[i] - A[Aidx]*xlj;
+					x_local[i] = x_local[i] - A_local[j][i]*xlj;
+				}
+				x_local[j] = xlj;
+			}
 		}
 	}
 	// write everything out

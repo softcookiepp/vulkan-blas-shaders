@@ -473,12 +473,12 @@ void testTrsv()
 					
 					std::vector<float> xResult = xBuf->copyOut<float>();
 					cblas_strsv(ORDER, UPLO, TRANS, CblasNonUnit, N, A.data(), LDA, x.data(), 1);
-					//std::cout << "order: " << ORDER
-					//	<< "\n	transpose: " << TRANS
-					//	<< "\n		uplo: " << UPLO << std::endl;
-					//printVector(x);
-					//printVector(xResult);
-					//printVector(A);
+					std::cout << "order: " << ORDER
+						<< "\n	transpose: " << TRANS
+						<< "\n		uplo: " << UPLO << std::endl;
+					printVector(x);
+					printVector(xResult);
+					printVector(A);
 					ASSERT_CLOSE(x, xResult);
 					dev->deallocateBuffer(xBuf);
 					dev->deallocateBuffer(ABuf);

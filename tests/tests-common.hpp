@@ -69,7 +69,10 @@ void ASSERT_CLOSE(std::vector<float>& a, std::vector<float>& b, float tolerance 
 		mse += (dif*dif*invSize);
 	}
 	if (mse > tolerance)
+	{
+		std::cout << "mse: " << mse << std::endl;
 		throw std::runtime_error("mse too high");
+	}
 }
 
 void START_TEST(std::string title)
