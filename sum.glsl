@@ -3,7 +3,7 @@
 #include "helpers.h"
 #define LX 256
 
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = LX, local_size_y = 1, local_size_z = 1) in;
 
 layout(set = 0, binding = 0) buffer inp_buffer { FLOAT_T inp[]; };
 layout(set = 0, binding = 1) buffer outp_buffer { FLOAT_T outp[]; };

@@ -1,7 +1,7 @@
 #ifndef TART_BLAS_FWD
 #define TART_BLAS_FWD
 #include "../tart/include/tart.hpp"
-#include <openblas/cblas.h>
+#include <cblas.h>
 #include <map>
 #include <string>
 
@@ -40,19 +40,147 @@ tart::pipeline_ptr getShaderPipeline(std::string shaderPath, std::vector<uint8_t
 	return mapRef[specConsts];
 }
 
-float invokeSum(uint32_t size, tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y = nullptr, bool sync = false)
+
+// LEVEL 1 FUNCTIONS
+void ssum(tart::command_sequence_ptr sequence, uint32_t size,
+	tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y)
 {
 	struct {
-		uint32_t size = size;
-		int32_t incx = incx;
-	} pushConsts;
+		uint32_t size;
+		int32_t incx;
+	} pushConstStruct = {size, incx};
 	
-	
-	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConsts);
-	tart::pipeline_ptr sumPipeline = getShaderPipeline("spv/sum.spv", pushConsts = pushConsts);
-	sumPipeline->dispatch({1, 1, 1}, {}
-	return 0.0;
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/sum.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x, y}, packedPushConsts);
 }
+
+void sdot(tart::command_sequence_ptr sequence, uint32_t size,
+	tart::buffer_ptr x, int32_t incx,
+	tart::buffer_ptr y, int32_t incy,
+	tart::buffer_ptr out)
+{
+	struct {
+		uint32_t size;
+		int32_t incx;
+		int32_t incy;
+	} pushStruct = {size, incx, incy};
+	if (pushStruct.size != size) throw std::runtime_error("this should not happen");
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/dot.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x, y, out}, packedPushConsts);
+}
+
+void sasum(tart::command_sequence_ptr sequence, uint32_t size,
+	tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y, bool sync = false)
+{
+	struct {
+		uint32_t size;
+		int32_t incx;
+	} pushConstStruct = {size, incx};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/asum.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void snrm2(tart::command_sequence_ptr sequence, uint32_t size,
+	tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y, bool sync = false)
+{
+	struct {
+		uint32_t size;
+		int32_t incx;
+	} pushConstStruct = {size, incx};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/nrm2.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void samax(tart::command_sequence_ptr sequence, uint32_t size,
+	tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y, bool sync = false)
+{
+	struct {
+		uint32_t size;
+		int32_t incx;
+	} pushConstStruct = {size, incx};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/amax.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void samin(tart::command_sequence_ptr sequence, uint32_t size,
+	tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y, bool sync = false)
+{
+	struct {
+		uint32_t size;
+		int32_t incx;
+	} pushConstStruct = {size, incx};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/amin.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void smax(tart::command_sequence_ptr sequence, uint32_t size,
+	tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y, bool sync = false)
+{
+	struct {
+		uint32_t size;
+		int32_t incx;
+	} pushConstStruct = {size, incx};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/max.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void smin(tart::command_sequence_ptr sequence, uint32_t size,
+	tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y, bool sync = false)
+{
+	struct {
+		uint32_t size;
+		int32_t incx;
+	} pushConstStruct = {size, incx};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/min.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void saxpy(tart::command_sequence_ptr sequence, uint32_t n,
+	float alpha, 
+	tart::buffer_ptr x, int32_t incx, tart::buffer_ptr y, int32_t incy)
+{
+	struct {
+		uint32_t n;
+		float alpha;
+		int32_t incx;
+		int32_t incy;
+	} pushConstStruct = {n, alpha, incx, incy};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/axpy.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {n, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void scopy(tart::command_sequence_ptr sequence, uint32_t n,
+	tart::buffer_ptr x, int32_t incx,
+	tart::buffer_ptr y, int32_t incy)
+{
+	struct {
+		uint32_t n;
+		int32_t incx;
+		int32_t incy;
+	} pushConstStruct = {n, incx, incy};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/copy.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {n, 1, 1}, {x, y}, packedPushConsts);
+}
+
+
 
 } // namespace tartblas
 
