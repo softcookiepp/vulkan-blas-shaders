@@ -273,20 +273,11 @@ void sgemv(tart::command_sequence_ptr sequence,
 	// if supplied order is column major and no transpose is specified, then the array is transposed.
 	// if row major and transpose is specified, then array is transposed.
 	// in other cases, the array is not transposed.
-	bool useTranspose = (order == CblasColMajor && transpose == CblasNoTrans)
+	bool requiresFlip = (order == CblasColMajor && transpose == CblasNoTrans)
 		|| (order == CblasRowMajor && transpose == CblasTrans);
-	//if (useTranspose)
-	//	throw std::invalid_argument("using transpose is not yet validated!");
-	
-	if (transpose == CblasTrans)
-	{
-		uint32_t tmp = m;
-		m = n;
-		n = tmp;
-	}
-	
+		
 	struct {
-		uint32_t use_transpose; // booleans in GLSL are 32-bit
+		uint32_t requires_flip; // booleans in GLSL are 32-bit
 		float alpha;
 		uint32_t lda;
 		int32_t incx;
@@ -294,7 +285,14 @@ void sgemv(tart::command_sequence_ptr sequence,
 		int32_t incy;
 		uint32_t m;
 		uint32_t n;
-	} pushConstStruct = {(uint32_t)useTranspose, alpha, lda, incx, beta, incy, m, n};
+	} pushConstStruct = {(uint32_t)requiresFlip, alpha, lda, incx, beta, incy, m, n};
+	
+	if (transpose == CblasTrans)
+	{
+		// flip m and n
+		pushConstStruct.m = n;
+		pushConstStruct.n = m;
+	}
 	
 	// each matrix row element will need to have a partial sum associated with it.
 	// the row size is n
@@ -302,14 +300,14 @@ void sgemv(tart::command_sequence_ptr sequence,
 	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
 	struct {
 		uint32_t n;
-	} specConstStruct = {n};
+	} specConstStruct = {pushConstStruct.n};
 	std::vector<uint8_t> packedSpecConsts = tart::packConstants(specConstStruct);
 	tart::pipeline_ptr pipeline = getShaderPipeline("spv/gemv.spv", packedSpecConsts, packedPushConsts);
-	sequence->recordPipeline(pipeline, {m}, {x, A, y}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {pushConstStruct.m}, {x, A, y}, packedPushConsts);
 }
 
 void sger(tart::command_sequence_ptr sequence,
-	enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE transpose,
+	enum CBLAS_ORDER order,
 	uint32_t m, uint32_t n, float alpha,
 	tart::buffer_ptr x, int32_t incx,
 	tart::buffer_ptr y, int32_t incy,
@@ -319,24 +317,20 @@ void sger(tart::command_sequence_ptr sequence,
 	// if supplied order is column major and no transpose is specified, then the array is transposed.
 	// if row major and transpose is specified, then array is transposed.
 	// in other cases, the array is not transposed.
-	bool useTranspose = (order == CblasColMajor && transpose == CblasNoTrans)
-		|| (order == CblasRowMajor && transpose == CblasTrans);
-
-	
-	
+	bool requiresFlip = order == CblasColMajor;
 	struct {
-		uint32_t use_transpose; // booleans in GLSL are 32-bit
+		uint32_t requires_flip; // booleans in GLSL are 32-bit
 		uint32_t m;
 		uint32_t n;
 		float alpha;
 		int32_t incx;
 		int32_t incy;
 		uint32_t lda;
-	} pushConstStruct = {(uint32_t)useTranspose, m, n, alpha, incx, incy, lda};
+	} pushConstStruct = {(uint32_t)requiresFlip, m, n, alpha, incx, incy, lda};
 	
 	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
 	tart::pipeline_ptr pipeline = getShaderPipeline("spv/ger.spv", {}, packedPushConsts);
-	sequence->recordPipeline(pipeline, {n, m}, {x, y, A}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {pushConstStruct.n, pushConstStruct.m}, {x, y, A}, packedPushConsts);
 }
 
 } // namespace tartblas

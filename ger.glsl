@@ -22,15 +22,14 @@ layout(push_constant) uniform push
 
 void main()
 {
-	uint ypos = gl_WorkGroupID.x;
-	uint xpos = gl_WorkGroupID.y;
+	// column elem is the x vector position
+	// row elem is the y vector position
+	uint row_elem = gl_WorkGroupID.x;
+	uint column_elem = gl_WorkGroupID.y;
 	
-	// y is internally transposed.
-	uint xidx = compute_index(xpos, consts.m, consts.incx);
-	uint yidx = compute_index(ypos, consts.n, consts.incy);
+	uint xidx = compute_index(column_elem, consts.m, consts.incx);
+	uint yidx = compute_index(row_elem, consts.n, consts.incy);
 
-	uint column_elem = consts.transpose ? ypos : xpos;
-	uint row_elem = consts.transpose ? xpos : ypos;
 	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.transpose);
 
 	A[Aidx] = MUL(consts.alpha, MUL(x[xidx], y[yidx]) ) + A[Aidx];

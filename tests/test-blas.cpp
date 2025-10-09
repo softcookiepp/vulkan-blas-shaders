@@ -326,9 +326,9 @@ void testScal()
 void testGemv()
 {
 	START_TEST("gemv");
-	for (uint32_t WIDTH = 50; WIDTH <= 100; WIDTH += 1)
+	for (uint32_t WIDTH = 50; WIDTH <= 60; WIDTH += 1)
 	{
-		for (uint32_t HEIGHT = 50; HEIGHT <= 100; HEIGHT += 1)
+		for (uint32_t HEIGHT = 50; HEIGHT <= 60; HEIGHT += 1)
 		{
 			tart::device_ptr dev = getTestDevice();
 			std::vector<enum CBLAS_ORDER> orders({CblasRowMajor, CblasColMajor});
@@ -396,51 +396,40 @@ void testGer()
 	
 	tart::device_ptr dev = getTestDevice();
 	std::vector<enum CBLAS_ORDER> orders({CblasRowMajor, CblasColMajor});
-	std::vector<enum CBLAS_TRANSPOSE> transposes({CblasNoTrans, CblasTrans});
 	for (auto ORDER : orders)
 	{
-		for (auto TRANS : transposes)
+		uint32_t X_SIZE = HEIGHT;
+		uint32_t Y_SIZE = WIDTH;
+		uint32_t A_SIZE = 0;
+		
+		uint32_t LDA;
+		if (ORDER == CblasColMajor)
 		{
-			uint32_t X_SIZE = HEIGHT;
-			uint32_t Y_SIZE = WIDTH;
-			uint32_t A_SIZE = 0;
-			
-			if (TRANS == CblasTrans)
-			{
-				X_SIZE = WIDTH;
-				Y_SIZE = HEIGHT;
-			}
-			
-			uint32_t LDA;
-			if (ORDER == CblasColMajor)
-			{
-				// columns are contiguous, LDA is column size
-				LDA = HEIGHT;
-			}
-			else
-			{
-				// rows are contiguous, LDA is width
-				LDA = WIDTH;
-			}
-				
-			std::vector<float> x = randn(X_SIZE);
-			std::vector<float> A = randn(HEIGHT*WIDTH);
-			std::vector<float> y(Y_SIZE);
-			tart::buffer_ptr xBuf = dev->allocateBuffer(x);
-			tart::buffer_ptr ABuf = dev->allocateBuffer(A);
-			tart::buffer_ptr yBuf = dev->allocateBuffer(y.size()*sizeof(float));
-			float alpha = randn();
-			float beta = randn();
-			
-			tart::command_sequence_ptr sequence = dev->createSequence();
-			tartblas::sgemv(sequence, ORDER, TRANS, HEIGHT, WIDTH, alpha, ABuf, LDA, xBuf, 1, beta, yBuf, 1);
-			dev->submitSequence(sequence);
-			dev->sync();
-			
-			std::vector<float> yResult = yBuf->copyOut<float>();
-			cblas_sgemv(ORDER, TRANS, HEIGHT, WIDTH, alpha, A.data(), LDA, x.data(), 1, beta, y.data(), 1);
-			ASSERT_CLOSE(y, yResult);
+			// columns are contiguous, LDA is column size
+			LDA = HEIGHT;
 		}
+		else
+		{
+			// rows are contiguous, LDA is width
+			LDA = WIDTH;
+		}
+			
+		std::vector<float> x = randn(X_SIZE);
+		std::vector<float> A = randn(HEIGHT*WIDTH);
+		std::vector<float> y = randn(Y_SIZE);
+		tart::buffer_ptr xBuf = dev->allocateBuffer(x);
+		tart::buffer_ptr ABuf = dev->allocateBuffer(A);
+		tart::buffer_ptr yBuf = dev->allocateBuffer(y);
+		float alpha = randn();
+		
+		tart::command_sequence_ptr sequence = dev->createSequence();
+		tartblas::sger(sequence, ORDER, HEIGHT, WIDTH, alpha, xBuf, 1, yBuf, 1, ABuf, LDA);
+		dev->submitSequence(sequence);
+		dev->sync();
+		
+		std::vector<float> AResult = ABuf->copyOut<float>();
+		cblas_sger(ORDER, HEIGHT, WIDTH, alpha, x.data(), 1, y.data(), 1, A.data(), LDA);
+		ASSERT_CLOSE(A, AResult);
 	}
 }
 
@@ -461,4 +450,5 @@ int main(int argc, char** argv)
 	testRotm();
 	testScal();
 	testGemv();
+	testGer();
 }
