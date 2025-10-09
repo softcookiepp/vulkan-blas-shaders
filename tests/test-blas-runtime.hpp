@@ -195,6 +195,109 @@ void sswap(tart::command_sequence_ptr sequence, uint32_t n,
 	sequence->recordPipeline(pipeline, {n, 1, 1}, {x, y}, packedPushConsts);
 }
 
+void srot(tart::command_sequence_ptr sequence, uint32_t n,
+	tart::buffer_ptr x, int32_t incx,
+	tart::buffer_ptr y, int32_t incy,
+	float c, float s)
+{
+	struct {
+		uint32_t n;
+		int32_t incx;
+		int32_t incy;
+		float c;
+		float s;
+	} pushConstStruct = {n, incx, incy, c, s};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/rot.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {n, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void srotg(tart::command_sequence_ptr sequence,
+	tart::buffer_ptr a,
+	tart::buffer_ptr b,
+	tart::buffer_ptr c,
+	tart::buffer_ptr s)
+{
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/rotg.spv", {}, {});
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {a, b, c, s});
+}
+
+void srotm(tart::command_sequence_ptr sequence, uint32_t n,
+	tart::buffer_ptr x, int32_t incx,
+	tart::buffer_ptr y, int32_t incy,
+	std::vector<float> param)
+{
+	if (param.size() != 5)
+		throw std::invalid_argument("param size must be 5!");
+	struct {
+		uint32_t n;
+		int32_t incx;
+		int32_t incy;
+		float p0;
+		float p1;
+		float p2;
+		float p3;
+		float p4;
+	} pushConstStruct = {n, incx, incy, param[0], param[1], param[2], param[3], param[4]};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/rotm.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {n, 1, 1}, {x, y}, packedPushConsts);
+}
+
+void sscal(tart::command_sequence_ptr sequence, uint32_t n,
+	float alpha, tart::buffer_ptr x, int32_t incx)
+{
+	struct {
+		uint32_t n;
+		float alpha;
+		int32_t incx;
+	} pushConstStruct = {n, alpha, incx};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/scal.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {n}, {x}, packedPushConsts);
+}
+
+// LEVEL 2
+void sgemv(tart::command_sequence_ptr sequence,
+	enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE transpose,
+	const uint32_t m, const uint32_t n, float alpha,
+	tart::buffer_ptr A, uint32_t lda,
+	tart::buffer_ptr x, int32_t incx,
+	float beta,
+	tart::buffer_ptr y, int32_t incy)
+{
+	// assume a ground truth that all supplied arrays are inherently row major.
+	// if supplied order is column major and no transpose is specified, then the array is transposed.
+	// if row major and transpose is specified, then array is transposed.
+	// in other cases, the array is not transposed.
+	bool useTranspose = (order == CblasColMajor && transpose == CblasNoTrans)
+		|| (order == CblasRowMajor && transpose == CblasTrans);
+	//if (useTranspose)
+	//	throw std::invalid_argument("using transpose is not yet validated!");
+	struct {
+		uint32_t use_transpose; // booleans in GLSL are 32-bit
+		float alpha;
+		uint32_t lda;
+		int32_t incx;
+		float beta;
+		int32_t incy;
+		uint32_t m;
+		uint32_t n;
+	} pushConstStruct = {(uint32_t)useTranspose, alpha, lda, incx, beta, incy, m, n};
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	struct {
+		uint32_t n;
+	} specConstStruct = {n};
+	std::vector<uint8_t> packedSpecConsts = tart::packConstants(specConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/gemv.spv", packedSpecConsts, packedPushConsts);
+	sequence->recordPipeline(pipeline, {m}, {x, A, y}, packedPushConsts);
+}
+
+
+
 } // namespace tartblas
 
 #endif

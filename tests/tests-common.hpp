@@ -5,20 +5,28 @@
 #include <string>
 #include <random>
 #include <cstdlib>
+#include <sstream>
 
 std::random_device rd;
 std::mt19937 gGenerator(rd());
 std::normal_distribution<> gDist(-1.0, 1.0);
+
+float randn()
+{
+	return gDist(gGenerator);
+}
 
 std::vector<float> randn(uint32_t size)
 {
 	std::vector<float> v(size);
 	for (size_t i = 0; i < v.size(); i += 1)
 	{
-		v[i] = gDist(gGenerator);
+		v[i] = randn();
 	}
 	return v;
 }
+
+
 
 template <typename T>
 void ASSERT_EQUAL(T& a, T& b)
@@ -28,7 +36,13 @@ void ASSERT_EQUAL(T& a, T& b)
 
 void ASSERT_CLOSE(float a, float b, float tolerance = 1.0e-5)
 {
-	if (abs(a - b) > tolerance) throw std::runtime_error("assertion failed!");
+	if (abs(a - b) > tolerance)
+	{
+		std::stringstream ss;
+		ss << "assertion failed: " << a << " is not close to "
+			<< b << " (tolerance: " << tolerance << ")" << std::endl;
+		throw std::runtime_error(ss.str());
+	}
 }
 
 void ASSERT_CLOSE(std::vector<float>& a, std::vector<float>& b, float tolerance = 1.0e-5)

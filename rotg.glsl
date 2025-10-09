@@ -19,6 +19,7 @@ void main()
 	FLOAT_T z = 1.0 / r;
 	FLOAT_T c = a * z;
 	FLOAT_T s = b * z;
+	
 	c_arr[gid] = c;
 	s_arr[gid] = s;
 	a_arr[gid] = r;

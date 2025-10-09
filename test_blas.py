@@ -502,7 +502,7 @@ def invoke_gemv(
 	push.view(np.float32)[4] = beta
 	push.view(np.int32)[5] = incy
 	push.view(np.uint32)[6] = m
-	push.view(np.uint32)[7] = m
+	push.view(np.uint32)[7] = n
 	
 	# initialize correct pipeline
 	gemv_pipeline = get_gemv_pipeline(m)
@@ -545,9 +545,10 @@ def test_gemv_row_major():
 		alpha = 5.9
 		#beta = 5.48
 		beta = 2.4
-		
+		print(A.shape)
 		m = x.shape[0]
 		n = y.shape[0]
+		input((m, n))
 		
 		# lda is whatever dimension that happens to be contiguous. If row-major, it is the row.
 		# If column-major, it is the column.

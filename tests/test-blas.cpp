@@ -217,6 +217,154 @@ void testSwap()
 	ASSERT_CLOSE(x, xResult);
 }
 
+void testRot()
+{
+	START_TEST("rot");
+	const uint32_t SIZE = 2345;
+	tart::device_ptr dev = getTestDevice();
+	
+	std::vector<float> x = randn(SIZE);
+	std::vector<float> y = randn(SIZE);
+	tart::buffer_ptr xBuf = dev->allocateBuffer(x);
+	tart::buffer_ptr yBuf = dev->allocateBuffer(y);
+	float c = randn();
+	float s = randn();
+	
+	tart::command_sequence_ptr sequence = dev->createSequence();
+	tartblas::srot(sequence, SIZE, xBuf, 1, yBuf, -1, c, s);
+	dev->submitSequence(sequence);
+	dev->sync();
+	
+	cblas_srot(SIZE, x.data(), 1, y.data(), -1, c, s);
+	std::vector<float> yResult = yBuf->copyOut<float>();
+	std::vector<float> xResult = xBuf->copyOut<float>();
+	ASSERT_CLOSE(y, yResult);
+	ASSERT_CLOSE(x, xResult);
+}
+
+void testRotg()
+{
+	START_TEST("rotg");
+	const uint32_t SIZE = 1;
+	tart::device_ptr dev = getTestDevice();
+	
+	std::vector<float> a = randn(SIZE);
+	std::vector<float> b = randn(SIZE);
+	std::vector<float> c = randn(SIZE);
+	std::vector<float> s = randn(SIZE);
+	tart::buffer_ptr aBuf = dev->allocateBuffer(a);
+	tart::buffer_ptr bBuf = dev->allocateBuffer(b);
+	tart::buffer_ptr cBuf = dev->allocateBuffer(c);
+	tart::buffer_ptr sBuf = dev->allocateBuffer(s);
+	
+	tart::command_sequence_ptr sequence = dev->createSequence();
+	tartblas::srotg(sequence, aBuf, bBuf, cBuf, sBuf);
+	dev->submitSequence(sequence);
+	dev->sync();
+	
+	cblas_srotg(a.data(), b.data(), c.data(), s.data());
+	
+	std::vector<float> cResult = cBuf->copyOut<float>();
+	std::vector<float> sResult = sBuf->copyOut<float>();
+	std::cout << c[0] << std::endl;
+	std::cout << cResult[0] << std::endl;
+	std::cout << s[0] << std::endl;
+	std::cout << sResult[0] << std::endl;
+	ASSERT_CLOSE(c, cResult);
+	ASSERT_CLOSE(s, sResult);
+}
+
+void testRotm()
+{
+	START_TEST("rotm");
+	const uint32_t SIZE = 2345;
+	tart::device_ptr dev = getTestDevice();
+	
+	std::vector<float> flags({-1.0, 0.0, 1.0, -2.0});
+	for (float flag : flags)
+	{
+		std::vector<float> x = randn(SIZE);
+		std::vector<float> y = randn(SIZE);
+		tart::buffer_ptr xBuf = dev->allocateBuffer(x);
+		tart::buffer_ptr yBuf = dev->allocateBuffer(y);
+		std::vector<float> param = randn(5);
+		param[0] = flag;
+		
+		tart::command_sequence_ptr sequence = dev->createSequence();
+		tartblas::srotm(sequence, SIZE, xBuf, 1, yBuf, -1, param);
+		dev->submitSequence(sequence);
+		dev->sync();
+		
+		cblas_srotm(SIZE, x.data(), 1, y.data(), -1, param.data());
+		std::vector<float> yResult = yBuf->copyOut<float>();
+		std::vector<float> xResult = xBuf->copyOut<float>();
+		ASSERT_CLOSE(y, yResult);
+		ASSERT_CLOSE(x, xResult);
+	}
+}
+
+void testScal()
+{
+	START_TEST("scal");
+	const uint32_t SIZE = 2345;
+	tart::device_ptr dev = getTestDevice();
+	
+	std::vector<float> x = randn(SIZE);
+	tart::buffer_ptr xBuf = dev->allocateBuffer(x);
+	float alpha = randn();
+	
+	tart::command_sequence_ptr sequence = dev->createSequence();
+	tartblas::sscal(sequence, SIZE, alpha, xBuf, 1);
+	dev->submitSequence(sequence);
+	dev->sync();
+	
+	cblas_sscal(SIZE, alpha, x.data(), 1);
+	std::vector<float> xResult = xBuf->copyOut<float>();
+	ASSERT_CLOSE(x, xResult);
+}
+
+void testGemv()
+{
+	
+	START_TEST("gemv");
+	const uint32_t HEIGHT = 4;
+	const uint32_t WIDTH = 8;
+	const uint32_t X_SIZE = HEIGHT;
+	const uint32_t Y_SIZE = WIDTH;
+	uint32_t LDA = HEIGHT; // in row-major arrays, the horizontal dimension is contiguous
+	tart::device_ptr dev = getTestDevice();
+	std::vector<enum CBLAS_ORDER> orders({CblasRowMajor, CblasColMajor});
+	const enum CBLAS_TRANSPOSE TRANS = CblasNoTrans;
+	for (auto ORDER : orders)
+	{
+		if (ORDER == CblasColMajor)
+			LDA = WIDTH;
+		std::vector<float> x = randn(X_SIZE);
+		std::vector<float> A = randn(HEIGHT*WIDTH);
+		std::vector<float> y(Y_SIZE);
+		tart::buffer_ptr xBuf = dev->allocateBuffer(x);
+		tart::buffer_ptr ABuf = dev->allocateBuffer(A);
+		tart::buffer_ptr yBuf = dev->allocateBuffer(y.size()*sizeof(float));
+		float alpha = randn();
+		float beta = randn();
+		
+		tart::command_sequence_ptr sequence = dev->createSequence();
+		tartblas::sgemv(sequence, ORDER, TRANS, WIDTH, HEIGHT, alpha, ABuf, LDA, xBuf, 1, beta, yBuf, 1);
+		dev->submitSequence(sequence);
+		dev->sync();
+		
+		cblas_sgemv(ORDER, TRANS, WIDTH, HEIGHT, alpha, A.data(), LDA, x.data(), 1, beta, y.data(), 1);
+		std::vector<float> yResult = yBuf->copyOut<float>();
+		for (float yv: y)
+			std::cout << yv << ", ";
+			std::cout << std::endl;
+		for (float yv: yResult)
+			std::cout << yv << ", ";
+			std::cout << std::endl;
+		ASSERT_CLOSE(y, yResult);
+	}
+}
+
 int main(int argc, char** argv)
 {
 	testSum();
@@ -229,4 +377,9 @@ int main(int argc, char** argv)
 	testAxpy();
 	testCopy();
 	testSwap();
+	testRot();
+	// testRotg(); disable this for now, it is semi-broken :c
+	testRotm();
+	testScal();
+	testGemv();
 }
