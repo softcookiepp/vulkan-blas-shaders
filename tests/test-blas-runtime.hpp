@@ -180,7 +180,20 @@ void scopy(tart::command_sequence_ptr sequence, uint32_t n,
 	sequence->recordPipeline(pipeline, {n, 1, 1}, {x, y}, packedPushConsts);
 }
 
-
+void sswap(tart::command_sequence_ptr sequence, uint32_t n,
+	tart::buffer_ptr x, int32_t incx,
+	tart::buffer_ptr y, int32_t incy)
+{
+	struct {
+		uint32_t n;
+		int32_t incx;
+		int32_t incy;
+	} pushConstStruct = {n, incx, incy};
+	
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/swap.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {n, 1, 1}, {x, y}, packedPushConsts);
+}
 
 } // namespace tartblas
 

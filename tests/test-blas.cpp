@@ -194,6 +194,29 @@ void testCopy()
 	ASSERT_CLOSE(y, vResult);
 }
 
+void testSwap()
+{
+	START_TEST("swap");
+	const uint32_t SIZE = 2345;
+	tart::device_ptr dev = getTestDevice();
+	
+	std::vector<float> x = randn(SIZE);
+	std::vector<float> y = randn(SIZE);
+	tart::buffer_ptr xBuf = dev->allocateBuffer(x);
+	tart::buffer_ptr yBuf = dev->allocateBuffer(y);
+	
+	tart::command_sequence_ptr sequence = dev->createSequence();
+	tartblas::sswap(sequence, SIZE, xBuf, 1, yBuf, -1);
+	dev->submitSequence(sequence);
+	dev->sync();
+	
+	cblas_sswap(SIZE, x.data(), 1, y.data(), -1);
+	std::vector<float> yResult = yBuf->copyOut<float>();
+	std::vector<float> xResult = xBuf->copyOut<float>();
+	ASSERT_CLOSE(y, yResult);
+	ASSERT_CLOSE(x, xResult);
+}
+
 int main(int argc, char** argv)
 {
 	testSum();
@@ -205,4 +228,5 @@ int main(int argc, char** argv)
 	testMin();
 	testAxpy();
 	testCopy();
+	testSwap();
 }
