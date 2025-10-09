@@ -333,6 +333,34 @@ void sger(tart::command_sequence_ptr sequence,
 	sequence->recordPipeline(pipeline, {pushConstStruct.n, pushConstStruct.m}, {x, y, A}, packedPushConsts);
 }
 
+void strsv(tart::command_sequence_ptr sequence,
+	const enum CBLAS_ORDER order, const enum CBLAS_UPLO uplo, const enum CBLAS_TRANSPOSE trans,
+	const enum CBLAS_DIAG diag, uint32_t N, tart::buffer_ptr A, uint32_t lda, tart::buffer_ptr x, int32_t incx)
+{
+	
+	if (diag == CblasUnit) throw std::runtime_error("unit diagonal triangulars are not implemented!");
+	
+	bool requiresFlip = (order == CblasColMajor && trans == CblasNoTrans)
+		|| (order == CblasRowMajor && trans == CblasTrans);
+	
+	struct {
+		uint32_t requires_flip; // booleans in GLSL are 32-bit
+		uint32_t transpose; // also bool
+		int32_t incx;
+		uint32_t lda;
+	} pushConstStruct = {(uint32_t)requiresFlip, (uint32_t)(trans == CblasTrans), incx, lda};
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	
+	struct {
+		uint32_t N;
+		uint32_t LOWER;
+		uint32_t UNIT_DIAGONAL;
+	} specConstStruct = {N, (uint32_t)(uplo == CblasLower), (uint32_t)false};
+	std::vector<uint8_t> packedSpecConsts = tart::packConstants(specConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/trsv.spv", packedSpecConsts, packedPushConsts);
+	sequence->recordPipeline(pipeline, {1, 1, 1}, {x ,A}, packedPushConsts);
+}
+
 } // namespace tartblas
 
 #endif

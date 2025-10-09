@@ -391,45 +391,100 @@ void testGemv()
 void testGer()
 {
 	START_TEST("ger");
-	const uint32_t HEIGHT = 8;
-	const uint32_t WIDTH = 5;
-	
 	tart::device_ptr dev = getTestDevice();
 	std::vector<enum CBLAS_ORDER> orders({CblasRowMajor, CblasColMajor});
-	for (auto ORDER : orders)
+	for (uint32_t HEIGHT = 2; HEIGHT < 16; HEIGHT += 1)
 	{
-		uint32_t X_SIZE = HEIGHT;
-		uint32_t Y_SIZE = WIDTH;
-		uint32_t A_SIZE = 0;
-		
-		uint32_t LDA;
-		if (ORDER == CblasColMajor)
+		for (uint32_t WIDTH = 2; WIDTH < 16; WIDTH += 1)
 		{
-			// columns are contiguous, LDA is column size
-			LDA = HEIGHT;
+			for (auto ORDER : orders)
+			{
+				uint32_t X_SIZE = HEIGHT;
+				uint32_t Y_SIZE = WIDTH;
+				uint32_t A_SIZE = 0;
+				
+				uint32_t LDA;
+				if (ORDER == CblasColMajor)
+				{
+					// columns are contiguous, LDA is column size
+					LDA = HEIGHT;
+				}
+				else
+				{
+					// rows are contiguous, LDA is width
+					LDA = WIDTH;
+				}
+					
+				std::vector<float> x = randn(X_SIZE);
+				std::vector<float> A = randn(HEIGHT*WIDTH);
+				std::vector<float> y = randn(Y_SIZE);
+				tart::buffer_ptr xBuf = dev->allocateBuffer(x);
+				tart::buffer_ptr ABuf = dev->allocateBuffer(A);
+				tart::buffer_ptr yBuf = dev->allocateBuffer(y);
+				float alpha = randn();
+				
+				tart::command_sequence_ptr sequence = dev->createSequence();
+				tartblas::sger(sequence, ORDER, HEIGHT, WIDTH, alpha, xBuf, 1, yBuf, 1, ABuf, LDA);
+				dev->submitSequence(sequence);
+				dev->sync();
+				
+				std::vector<float> AResult = ABuf->copyOut<float>();
+				cblas_sger(ORDER, HEIGHT, WIDTH, alpha, x.data(), 1, y.data(), 1, A.data(), LDA);
+				ASSERT_CLOSE(A, AResult);
+				dev->deallocateBuffer(xBuf);
+				dev->deallocateBuffer(ABuf);
+				dev->deallocateBuffer(yBuf);
+			}
 		}
-		else
+	}
+}
+
+void testTrsv()
+{
+	START_TEST("trsv");
+	tart::device_ptr dev = getTestDevice();
+	std::vector<enum CBLAS_ORDER> orders({CblasRowMajor, CblasColMajor});
+	std::vector<enum CBLAS_TRANSPOSE> transposes({CblasNoTrans, CblasTrans});
+	std::vector<enum CBLAS_UPLO> uplos({CblasLower
+#if 0
+		, CblasUpper
+#endif
+	});
+	for (uint32_t N = 4; N < 16; N += 1)
+	{
+		for (auto ORDER : orders)
 		{
-			// rows are contiguous, LDA is width
-			LDA = WIDTH;
+			for (auto TRANS : transposes)
+			{
+				for (auto UPLO : uplos)
+				{
+					uint32_t X_SIZE = N;
+					uint32_t LDA = N; // matrix must be square, so LDA will be the same no matter what the transpose is
+						
+					std::vector<float> x = randn(X_SIZE);
+					std::vector<float> A = randn(N*N);
+					tart::buffer_ptr xBuf = dev->allocateBuffer(x);
+					tart::buffer_ptr ABuf = dev->allocateBuffer(A);
+					
+					tart::command_sequence_ptr sequence = dev->createSequence();
+					tartblas::strsv(sequence, ORDER, UPLO, TRANS, CblasNonUnit, N, ABuf, LDA, xBuf, 1);
+					dev->submitSequence(sequence);
+					dev->sync();
+					
+					std::vector<float> xResult = xBuf->copyOut<float>();
+					cblas_strsv(ORDER, UPLO, TRANS, CblasNonUnit, N, A.data(), LDA, x.data(), 1);
+					//std::cout << "order: " << ORDER
+					//	<< "\n	transpose: " << TRANS
+					//	<< "\n		uplo: " << UPLO << std::endl;
+					//printVector(x);
+					//printVector(xResult);
+					//printVector(A);
+					ASSERT_CLOSE(x, xResult);
+					dev->deallocateBuffer(xBuf);
+					dev->deallocateBuffer(ABuf);
+				}
+			}
 		}
-			
-		std::vector<float> x = randn(X_SIZE);
-		std::vector<float> A = randn(HEIGHT*WIDTH);
-		std::vector<float> y = randn(Y_SIZE);
-		tart::buffer_ptr xBuf = dev->allocateBuffer(x);
-		tart::buffer_ptr ABuf = dev->allocateBuffer(A);
-		tart::buffer_ptr yBuf = dev->allocateBuffer(y);
-		float alpha = randn();
-		
-		tart::command_sequence_ptr sequence = dev->createSequence();
-		tartblas::sger(sequence, ORDER, HEIGHT, WIDTH, alpha, xBuf, 1, yBuf, 1, ABuf, LDA);
-		dev->submitSequence(sequence);
-		dev->sync();
-		
-		std::vector<float> AResult = ABuf->copyOut<float>();
-		cblas_sger(ORDER, HEIGHT, WIDTH, alpha, x.data(), 1, y.data(), 1, A.data(), LDA);
-		ASSERT_CLOSE(A, AResult);
 	}
 }
 
@@ -451,4 +506,5 @@ int main(int argc, char** argv)
 	testScal();
 	testGemv();
 	testGer();
+	testTrsv();
 }

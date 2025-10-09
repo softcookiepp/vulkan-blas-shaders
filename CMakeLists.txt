@@ -38,7 +38,7 @@ compile_glsl(scal.glsl scal.spv)
 # level 2
 compile_glsl(gemv.glsl gemv.spv)
 compile_glsl(ger.glsl ger.spv)
-compile_glsl(trsv-lower.glsl trsv-lower.spv)
+compile_glsl(trsv.glsl trsv.spv)
 # thats all i got so far
 
 add_executable(test-blas tests/test-blas.cpp)

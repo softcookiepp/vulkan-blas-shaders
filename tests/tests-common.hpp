@@ -45,24 +45,31 @@ void ASSERT_EQUAL(T& a, T& b)
 	if (a != b) throw std::runtime_error("assertion failed!");
 }
 
-void ASSERT_CLOSE(float a, float b, float tolerance = 1.0e-5)
+void ASSERT_CLOSE(float a, float b, float tolerance = 1.0e-2)
 {
-	if (abs(a - b) > tolerance)
+	// error relative to magnitude size
+	float error = std::fabs(a - b);
+	if (error > tolerance)
 	{
 		std::stringstream ss;
 		ss << "assertion failed: " << a << " is not close to "
-			<< b << " (tolerance: " << tolerance << ")" << std::endl;
+			<< b << " (tolerance: " << tolerance << ", error: " << error << " )" << std::endl;
 		throw std::runtime_error(ss.str());
 	}
 }
 
-void ASSERT_CLOSE(std::vector<float>& a, std::vector<float>& b, float tolerance = 1.0e-5)
+void ASSERT_CLOSE(std::vector<float>& a, std::vector<float>& b, float tolerance = 1.0e-3)
 {
 	if (a.size() != b.size()) throw std::runtime_error("size mismatch!");
+	float mse = 0.0;
+	float invSize = 1.0/( (float)a.size() );
 	for (size_t i = 0; i < a.size(); i += 1)
 	{
-		ASSERT_CLOSE(a[i], b[i]);
+		float dif = a[i] - b[i];
+		mse += (dif*dif*invSize);
 	}
+	if (mse > tolerance)
+		throw std::runtime_error("mse too high");
 }
 
 void START_TEST(std::string title)

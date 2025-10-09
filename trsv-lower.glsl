@@ -18,7 +18,7 @@ layout(push_constant) uniform push
 void main()
 {
 	// this algorithm just isn't very parallelizable, sadly.
-	// so we are doing the whole thing in a single invocation.
+	// so we are doing the whole thing in a single invocation, until I understand this stuff better.
 	
 	// store the entirety of x locally first
 	FLOAT_T x_local[N];
