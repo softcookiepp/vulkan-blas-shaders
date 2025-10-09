@@ -446,7 +446,7 @@ void testTrsv()
 	std::vector<enum CBLAS_ORDER> orders({CblasRowMajor, CblasColMajor});
 	std::vector<enum CBLAS_TRANSPOSE> transposes({CblasNoTrans, CblasTrans});
 	std::vector<enum CBLAS_UPLO> uplos({CblasLower
-#if 0
+#if 1
 		, CblasUpper
 #endif
 	});

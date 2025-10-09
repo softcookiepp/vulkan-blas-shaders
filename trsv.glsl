@@ -71,9 +71,9 @@ void main()
 	{	
 		// algorithm for upper triangular matrix
 		// compute the solution
-		for (uint jr = N; jr > 0; jr -= 1)
+		for (uint j = 0; j < N; j += 1)
 		{
-			uint j = jr - 1;
+			uint j2 = consts.transpose ? j : N - j - 1;
 			Aidx = compute_mat_index(j, j, consts.lda, consts.column_major);
 			FLOAT_T xlj = x_local[j] / A[Aidx];
 			
