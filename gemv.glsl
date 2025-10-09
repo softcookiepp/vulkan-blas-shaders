@@ -30,12 +30,11 @@ void main()
 	
 	// each x index corresponds to a given row element of the matrix.
 	uint xidx = compute_index(row_elem, LX, consts.incx);
-	
+
 	// index of A will be computed by using the row and column position.
 	// the column and row position will be dependent on the transpose status
 	uint Aidx = compute_mat_index(row_elem, column_elem, consts.lda, consts.transpose);
-	
-	shared_mem[row_elem] = MUL(x[xidx], A[Aidx]);
+	shared_mem[row_elem] = MUL(x[xidx], MUL(consts.a, A[Aidx]) );
 	barrier();
 	
 	// from here on out, only the first thread will need to do anything
@@ -51,6 +50,6 @@ void main()
 		// compute the final result
 		uint yidx = compute_index(column_elem, consts.m, consts.incy);
 		FLOAT_T yval = y[yidx];
-		y[yidx] = MUL(xval, consts.a) + MUL(yval, consts.b);
+		y[yidx] = xval + MUL(yval, consts.b);
 	}
 }

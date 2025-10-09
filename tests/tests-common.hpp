@@ -26,7 +26,18 @@ std::vector<float> randn(uint32_t size)
 	return v;
 }
 
+template <typename T>
+void printVector(std::vector<T>& v)
+{
+	for (T& elem : v) std::cout << elem << ", ";
+	std::cout << std::endl;
+}
 
+template <typename T>
+void printMatrix(std::vector<T>&, uint32_t height, uint32_t width)
+{
+	
+}
 
 template <typename T>
 void ASSERT_EQUAL(T& a, T& b)

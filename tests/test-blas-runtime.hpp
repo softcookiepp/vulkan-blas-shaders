@@ -1,7 +1,7 @@
 #ifndef TART_BLAS_FWD
 #define TART_BLAS_FWD
 #include "../tart/include/tart.hpp"
-#include <cblas.h>
+#include <openblas/cblas.h>
 #include <map>
 #include <string>
 
@@ -263,7 +263,7 @@ void sscal(tart::command_sequence_ptr sequence, uint32_t n,
 // LEVEL 2
 void sgemv(tart::command_sequence_ptr sequence,
 	enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE transpose,
-	const uint32_t m, const uint32_t n, float alpha,
+	uint32_t m, uint32_t n, float alpha,
 	tart::buffer_ptr A, uint32_t lda,
 	tart::buffer_ptr x, int32_t incx,
 	float beta,
@@ -277,6 +277,14 @@ void sgemv(tart::command_sequence_ptr sequence,
 		|| (order == CblasRowMajor && transpose == CblasTrans);
 	//if (useTranspose)
 	//	throw std::invalid_argument("using transpose is not yet validated!");
+	
+	if (transpose == CblasTrans)
+	{
+		uint32_t tmp = m;
+		m = n;
+		n = tmp;
+	}
+	
 	struct {
 		uint32_t use_transpose; // booleans in GLSL are 32-bit
 		float alpha;
@@ -302,7 +310,7 @@ void sgemv(tart::command_sequence_ptr sequence,
 
 void sger(tart::command_sequence_ptr sequence,
 	enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE transpose,
-	const uint32_t m, const uint32_t n, float alpha,
+	uint32_t m, uint32_t n, float alpha,
 	tart::buffer_ptr x, int32_t incx,
 	tart::buffer_ptr y, int32_t incy,
 	tart::buffer_ptr A, uint32_t lda)
@@ -313,8 +321,9 @@ void sger(tart::command_sequence_ptr sequence,
 	// in other cases, the array is not transposed.
 	bool useTranspose = (order == CblasColMajor && transpose == CblasNoTrans)
 		|| (order == CblasRowMajor && transpose == CblasTrans);
-	//if (useTranspose)
-	//	throw std::invalid_argument("using transpose is not yet validated!");
+
+	
+	
 	struct {
 		uint32_t use_transpose; // booleans in GLSL are 32-bit
 		uint32_t m;
