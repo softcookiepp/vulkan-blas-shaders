@@ -287,6 +287,10 @@ void sgemv(tart::command_sequence_ptr sequence,
 		uint32_t m;
 		uint32_t n;
 	} pushConstStruct = {(uint32_t)useTranspose, alpha, lda, incx, beta, incy, m, n};
+	
+	// each matrix row element will need to have a partial sum associated with it.
+	// the row size is n
+	// which means the local size should also be n.
 	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
 	struct {
 		uint32_t n;

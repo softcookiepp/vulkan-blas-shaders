@@ -327,18 +327,18 @@ void testGemv()
 {
 	
 	START_TEST("gemv");
-	const uint32_t HEIGHT = 4;
-	const uint32_t WIDTH = 8;
-	const uint32_t X_SIZE = HEIGHT;
-	const uint32_t Y_SIZE = WIDTH;
-	uint32_t LDA = HEIGHT; // in row-major arrays, the horizontal dimension is contiguous
+	const uint32_t HEIGHT = 8;
+	const uint32_t WIDTH = 4;
+	const uint32_t X_SIZE = WIDTH;
+	const uint32_t Y_SIZE = HEIGHT;
+	uint32_t LDA = WIDTH; // in row-major arrays, the horizontal dimension is contiguous
 	tart::device_ptr dev = getTestDevice();
 	std::vector<enum CBLAS_ORDER> orders({CblasRowMajor, CblasColMajor});
 	const enum CBLAS_TRANSPOSE TRANS = CblasNoTrans;
 	for (auto ORDER : orders)
 	{
 		if (ORDER == CblasColMajor)
-			LDA = WIDTH;
+			LDA = HEIGHT;
 		std::vector<float> x = randn(X_SIZE);
 		std::vector<float> A = randn(HEIGHT*WIDTH);
 		std::vector<float> y(Y_SIZE);
@@ -349,18 +349,12 @@ void testGemv()
 		float beta = randn();
 		
 		tart::command_sequence_ptr sequence = dev->createSequence();
-		tartblas::sgemv(sequence, ORDER, TRANS, WIDTH, HEIGHT, alpha, ABuf, LDA, xBuf, 1, beta, yBuf, 1);
+		tartblas::sgemv(sequence, ORDER, TRANS, HEIGHT, WIDTH, alpha, ABuf, LDA, xBuf, 1, beta, yBuf, 1);
 		dev->submitSequence(sequence);
 		dev->sync();
 		
-		cblas_sgemv(ORDER, TRANS, WIDTH, HEIGHT, alpha, A.data(), LDA, x.data(), 1, beta, y.data(), 1);
+		cblas_sgemv(ORDER, TRANS, HEIGHT, WIDTH, alpha, A.data(), LDA, x.data(), 1, beta, y.data(), 1);
 		std::vector<float> yResult = yBuf->copyOut<float>();
-		for (float yv: y)
-			std::cout << yv << ", ";
-			std::cout << std::endl;
-		for (float yv: yResult)
-			std::cout << yv << ", ";
-			std::cout << std::endl;
 		ASSERT_CLOSE(y, yResult);
 	}
 }
