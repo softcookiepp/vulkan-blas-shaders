@@ -1,6 +1,8 @@
 #version 450
 #include "../common.glsl"
 
+layout(local_size_x = 16) in;
+
 layout(binding = 0) writeonly buffer dest_buf { real dest[]; };
 
 layout(push_constant) uniform const_layout

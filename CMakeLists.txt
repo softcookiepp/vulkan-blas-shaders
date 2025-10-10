@@ -37,9 +37,15 @@ compile_glsl(scal.glsl scal.spv)
 
 # level 2
 compile_glsl(gemv.glsl gemv.spv)
+compile_glsl(adapted-from-clblast/level2/xgemv.glsl gemv-new.spv)
 compile_glsl(ger.glsl ger.spv)
 compile_glsl(trsv.glsl trsv.spv)
+compile_glsl(adapted-from-clblast/level2/xtrsv-forward.glsl trsv-forward.spv)
+compile_glsl(adapted-from-clblast/level2/xtrsv-backward.glsl trsv-backward.spv)
 # thats all i got so far
+
+# helper methods
+compile_glsl(adapted-from-clblast/utils/fill-vector.glsl fill-vector.spv)
 
 add_executable(test-blas tests/test-blas.cpp)
 target_link_libraries(test-blas PRIVATE tart)

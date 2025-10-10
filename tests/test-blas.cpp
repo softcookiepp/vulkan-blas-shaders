@@ -465,9 +465,14 @@ void testTrsv()
 					std::vector<float> A = randn(N*N);
 					tart::buffer_ptr xBuf = dev->allocateBuffer(x);
 					tart::buffer_ptr ABuf = dev->allocateBuffer(A);
+					tart::buffer_ptr tmpBuf = dev->allocateBuffer(x.size()*sizeof(float)); // temporary buffer
 					
 					tart::command_sequence_ptr sequence = dev->createSequence();
+#if 1
+					tartblas::strsv(sequence, ORDER, UPLO, TRANS, CblasNonUnit, N, ABuf, LDA, xBuf, 1, tmpBuf);
+#else
 					tartblas::strsv(sequence, ORDER, UPLO, TRANS, CblasNonUnit, N, ABuf, LDA, xBuf, 1);
+#endif
 					dev->submitSequence(sequence);
 					dev->sync();
 					
