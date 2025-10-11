@@ -45,7 +45,7 @@ compile_glsl(adapted-from-clblast/level2/xtrsv-backward.glsl trsv-backward.spv)
 # thats all i got so far
 
 # helper methods
-compile_glsl(adapted-from-clblast/utils/fill-vector.glsl fill-vector.spv)
+compile_glsl(adapted-from-clblast/helpers/fill-vector.glsl fill-vector.spv)
 
 add_executable(test-blas tests/test-blas.cpp)
 target_link_libraries(test-blas PRIVATE tart)

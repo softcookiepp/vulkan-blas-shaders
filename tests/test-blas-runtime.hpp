@@ -288,27 +288,13 @@ void doMatVec(tart::command_sequence_ptr sequence,
 	const auto n_real = (a_transposed) ? m : n;
 
 	// Special adjustments for banded matrices
-	if (kl != 0 || ku != 0) {
-	a_one = kl + ku + 1;
-	}
+	if (kl != 0 || ku != 0) a_one = kl + ku + 1;
 
 	// Determines whether the kernel needs to perform rotated access ('^' is the XOR operator)
 	const auto a_rotated = a_transposed ^ a_altlayout; // ok, this makes a lot of sense now.
 
 	// In case of complex data-types, the transpose can also become a conjugate transpose
 	const auto a_conjugate = (CblasConjTrans == a_transpose || CblasConjNoTrans == a_transpose);
-
-	// I don't have this yet...
-#if 0
-	// Tests the matrix and the vectors for validity
-	if (packed) {
-	TestMatrixAP(n, a_buffer, a_offset);
-	} else {
-	TestMatrixA(a_one, a_two, a_buffer, a_offset, a_ld);
-	}
-	TestVectorX(n_real, x_buffer, x_offset, x_inc);
-	TestVectorY(m_real, y_buffer, y_offset, y_inc);
-#endif
 #if 0
 	// Determines whether or not the fast-version can be used
 	fast_kernel = fast_kernel && (a_offset == 0) && (a_rotated == 0) && (a_conjugate == 0) &&
@@ -328,15 +314,15 @@ void doMatVec(tart::command_sequence_ptr sequence,
 	// If possible, run the fast-version (rotated or non-rotated) of the kernel
 	auto kernel_name = std::string{"Xgemv"};
 	const auto m_ceiled = Ceil(m_real, GEMV_WGS1 * GEMV_WPT1);
-#if 1
+
 	// the global used to invoke shaders in OpenCL differs from how it is done in Vulkan.
 	// In Vulkan, the number of workgroups to dispatch is specified.
 	// In OpenCL, the total number of work items to dispatch is specified.
 	// Without paying attention to this, we will invoke way more work items than actually needed.
 	auto global_size = CeilDiv(m_real, GEMV_WGS1);
-#endif
+
 	auto local_size = GEMV_WPT1;
-#if 0 // going to differently able it for now
+#if 0 // temporarily disabled
 	if (fast_kernel) {
 		kernel_name = "XgemvFast";
 		global_size = m_real / db_["WPT2"];
@@ -551,7 +537,7 @@ void strsv(tart::command_sequence_ptr sequence,
 			int is_transposed;
 			int is_unit_diagonal;
 			int do_conjugate;
-		} pushStruct = {(int)n, 0, (int)lda, 0, incx, 0, incx, (int)isTransposed, (int)isUnitDiagonal, (int)doConjugate};
+		} pushStruct = {(int)n, 0, (int)lda, 0, incx, 0, incx, (int)(!isTransposed), (int)isUnitDiagonal, (int)doConjugate};
 		auto pushConsts = tart::packConstants(pushStruct);
 		tart::pipeline_ptr pipeline = nullptr;
 		if (isUpper)
