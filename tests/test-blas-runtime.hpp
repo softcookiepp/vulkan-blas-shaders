@@ -1,7 +1,7 @@
 #ifndef TART_BLAS_FWD
 #define TART_BLAS_FWD
 #include "../tart/include/tart.hpp"
-#include <openblas/cblas.h>
+#include <cblas.h>
 #include <map>
 #include <string>
 
@@ -14,6 +14,8 @@ tart::device_ptr getTestDevice()
 	return gTartInstance.createDevice(0);
 }
 
+uint32_t CeilDiv(const uint32_t x, const uint32_t y) { return 1 + ((x - 1) / y); }
+uint32_t Ceil(const uint32_t x, const uint32_t y) { return CeilDiv(x, y) * y; }
 
 namespace tartblas
 {
@@ -263,19 +265,20 @@ void sscal(tart::command_sequence_ptr sequence, uint32_t n,
 }
 
 // LEVEL 2
-#if 0
+#if 1
 
-void doMatVec(const CBLAS_ORDER layout, const CBLAS_TRANSPOSE a_transpose, const size_t m, const size_t n, const T alpha,
-                      const Buffer<T>& a_buffer, const size_t a_offset, const size_t a_ld, const Buffer<T>& x_buffer,
-                      const size_t x_offset, const size_t x_inc, const T beta, const Buffer<T>& y_buffer,
-                      const size_t y_offset, const size_t y_inc, bool fast_kernel = true, bool fast_kernel_rot = true,
-                      const size_t parameter = 0, const bool packed = false, const size_t kl = 0, const size_t ku = 0)
+void doMatVec(tart::command_sequence_ptr sequence,
+					const CBLAS_ORDER layout, const CBLAS_TRANSPOSE a_transpose, const uint32_t m, const uint32_t n, const float alpha,
+                      const tart::buffer_ptr a_buffer, const uint32_t a_offset, const uint32_t a_ld, const tart::buffer_ptr x_buffer,
+                      const uint32_t x_offset, const uint32_t x_inc, const float beta, const tart::buffer_ptr y_buffer,
+                      const uint32_t y_offset, const uint32_t y_inc, bool fast_kernel = true, bool fast_kernel_rot = true,
+                      const uint32_t parameter = 0, const bool packed = false, const uint32_t kl = 0, const uint32_t ku = 0)
 {
 	// Makes sure all dimensions are larger than zero
 	if (m == 0 || n == 0) throw std::invalid_argument("dimensions must not be 0");
 
 	// Computes whether or not the matrix has an alternative layout (row or column-major).
-	const auto a_altlayout = (layout == Layout::kRowMajor);
+	const auto a_altlayout = (layout == CblasRowMajor);
 	auto a_one = (a_altlayout) ? n : m;
 	const auto a_two = (a_altlayout) ? m : n;
 
@@ -290,11 +293,13 @@ void doMatVec(const CBLAS_ORDER layout, const CBLAS_TRANSPOSE a_transpose, const
 	}
 
 	// Determines whether the kernel needs to perform rotated access ('^' is the XOR operator)
-	const auto a_rotated = a_transposed ^ a_altlayout;
+	const auto a_rotated = a_transposed ^ a_altlayout; // ok, this makes a lot of sense now.
 
 	// In case of complex data-types, the transpose can also become a conjugate transpose
-	const auto a_conjugate = (a_transpose == Transpose::kConjugate);
+	const auto a_conjugate = (CblasConjTrans == a_transpose || CblasConjNoTrans == a_transpose);
 
+	// I don't have this yet...
+#if 0
 	// Tests the matrix and the vectors for validity
 	if (packed) {
 	TestMatrixAP(n, a_buffer, a_offset);
@@ -303,57 +308,89 @@ void doMatVec(const CBLAS_ORDER layout, const CBLAS_TRANSPOSE a_transpose, const
 	}
 	TestVectorX(n_real, x_buffer, x_offset, x_inc);
 	TestVectorY(m_real, y_buffer, y_offset, y_inc);
-
+#endif
+#if 0
 	// Determines whether or not the fast-version can be used
 	fast_kernel = fast_kernel && (a_offset == 0) && (a_rotated == 0) && (a_conjugate == 0) &&
 				IsMultiple(m, db_["WGS2"] * db_["WPT2"]) && IsMultiple(n, db_["WGS2"]) && IsMultiple(a_ld, db_["VW2"]);
 	fast_kernel_rot = fast_kernel_rot && (a_offset == 0) && (a_rotated == 1) && (a_conjugate == 0) &&
 					IsMultiple(m, db_["WGS3"] * db_["WPT3"]) && IsMultiple(n, db_["WGS3"]) &&
 					IsMultiple(a_ld, db_["VW3"]);
-
+#else
+	// not going to do this just yet; need to ensure that the bare minimum works
+	fast_kernel = false;
+	fast_kernel_rot = false;
+#endif
+	// going to do this here for now
+	#define GEMV_WGS1 64
+	#define GEMV_WPT1 1
+	
 	// If possible, run the fast-version (rotated or non-rotated) of the kernel
 	auto kernel_name = std::string{"Xgemv"};
-	const auto m_ceiled = Ceil(m_real, db_["WGS1"] * db_["WPT1"]);
-	auto global_size = m_ceiled / db_["WPT1"];
-	auto local_size = db_["WGS1"];
+	const auto m_ceiled = Ceil(m_real, GEMV_WGS1 * GEMV_WPT1);
+#if 1
+	// the global used to invoke shaders in OpenCL differs from how it is done in Vulkan.
+	// In Vulkan, the number of workgroups to dispatch is specified.
+	// In OpenCL, the total number of work items to dispatch is specified.
+	// Without paying attention to this, we will invoke way more work items than actually needed.
+	auto global_size = CeilDiv(m_real, GEMV_WGS1);
+#endif
+	auto local_size = GEMV_WPT1;
+#if 0 // going to differently able it for now
 	if (fast_kernel) {
-	kernel_name = "XgemvFast";
-	global_size = m_real / db_["WPT2"];
-	local_size = db_["WGS2"];
+		kernel_name = "XgemvFast";
+		global_size = m_real / db_["WPT2"];
+		local_size = db_["WGS2"];
 	}
 	if (fast_kernel_rot) {
-	kernel_name = "XgemvFastRot";
-	global_size = m_real;
-	local_size = db_["WGS3"];
+		kernel_name = "XgemvFastRot";
+		global_size = m_real;
+		local_size = db_["WGS3"];
 	}
+#endif
 
-	// Retrieves the Xgemv kernel from the compiled binary
-	auto kernel = Kernel(program_, kernel_name);
-
-	// Sets the kernel arguments
-	kernel.SetArgument(0, static_cast<int>(m_real));
-	kernel.SetArgument(1, static_cast<int>(n_real));
-	kernel.SetArgument(2, GetRealArg(alpha));
-	kernel.SetArgument(3, GetRealArg(beta));
-	kernel.SetArgument(4, static_cast<int>(a_rotated));
-	kernel.SetArgument(5, a_buffer());
-	kernel.SetArgument(6, static_cast<int>(a_offset));
-	kernel.SetArgument(7, static_cast<int>(a_ld));
-	kernel.SetArgument(8, x_buffer());
-	kernel.SetArgument(9, static_cast<int>(x_offset));
-	kernel.SetArgument(10, static_cast<int>(x_inc));
-	kernel.SetArgument(11, y_buffer());
-	kernel.SetArgument(12, static_cast<int>(y_offset));
-	kernel.SetArgument(13, static_cast<int>(y_inc));
-	kernel.SetArgument(14, static_cast<int>(a_conjugate));
-	kernel.SetArgument(15, static_cast<int>(parameter));  // extra parameter used for symm/herm
-	kernel.SetArgument(16, static_cast<int>(kl));         // only used for banded matrices
-	kernel.SetArgument(17, static_cast<int>(ku));         // only used for banded matrices
-
-	// Launches the kernel
-	auto global = std::vector<size_t>{global_size};
-	auto local = std::vector<size_t>{local_size};
-	RunKernel(kernel, queue_, device_, global, local, event_);
+	struct {
+		int m;
+		int n;
+		float alpha;
+		float beta;
+		int a_rotated;
+		// A
+		int a_offset;
+		int a_ld;
+		// x
+		int x_offset;
+		int x_inc;
+		// y
+		int y_offset;
+		int y_inc;
+		int a_conjugate;
+		int parameter;
+		int kl;
+		int ku;
+	} pushConstStruct = {
+		static_cast<int>(m_real),
+		static_cast<int>(n_real),
+		alpha,
+		beta,
+		static_cast<int>(a_rotated),
+		// A
+		static_cast<int>(a_offset),
+		static_cast<int>(a_ld),
+		// x
+		static_cast<int>(x_offset),
+		static_cast<int>(x_inc),
+		// y
+		static_cast<int>(y_offset),
+		static_cast<int>(y_inc),
+		static_cast<int>(a_conjugate),
+		static_cast<int>(parameter),
+		static_cast<int>(kl),
+		static_cast<int>(ku)
+	};
+	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
+	tart::pipeline_ptr pipeline = getShaderPipeline("spv/gemv-new.spv", {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {global_size}, {a_buffer, x_buffer, y_buffer}, packedPushConsts);
 }
 
 void sgemv(tart::command_sequence_ptr sequence,
@@ -364,41 +401,8 @@ void sgemv(tart::command_sequence_ptr sequence,
 	float beta,
 	tart::buffer_ptr y, int32_t incy)
 {
-	// assume a ground truth that all supplied arrays are inherently row major.
-	// if supplied order is column major and no transpose is specified, then the array is transposed.
-	// if row major and transpose is specified, then array is transposed.
-	// in other cases, the array is not transposed.
-	bool requiresFlip = (order == CblasColMajor && transpose == CblasNoTrans)
-		|| (order == CblasRowMajor && transpose == CblasTrans);
-		
-	struct {
-		uint32_t requires_flip; // booleans in GLSL are 32-bit
-		float alpha;
-		uint32_t lda;
-		int32_t incx;
-		float beta;
-		int32_t incy;
-		uint32_t m;
-		uint32_t n;
-	} pushConstStruct = {(uint32_t)requiresFlip, alpha, lda, incx, beta, incy, m, n};
-	
-	if (transpose == CblasTrans)
-	{
-		// flip m and n
-		pushConstStruct.m = n;
-		pushConstStruct.n = m;
-	}
-	
-	// each matrix row element will need to have a partial sum associated with it.
-	// the row size is n
-	// which means the local size should also be n.
-	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
-	struct {
-		uint32_t n;
-	} specConstStruct = {pushConstStruct.n};
-	std::vector<uint8_t> packedSpecConsts = tart::packConstants(specConstStruct);
-	tart::pipeline_ptr pipeline = getShaderPipeline("spv/gemv-new.spv", packedSpecConsts, packedPushConsts);
-	sequence->recordPipeline(pipeline, {pushConstStruct.m}, {x, A, y}, packedPushConsts);
+	// TODO: put the good stuffs here
+	doMatVec(sequence, order, transpose, m, n, alpha, A, 0, lda, x, 0, incx, beta, y, 0, incy);
 }
 #else
 void sgemv(tart::command_sequence_ptr sequence,
