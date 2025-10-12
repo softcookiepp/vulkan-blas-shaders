@@ -37,7 +37,8 @@ compile_glsl(scal.glsl scal.spv)
 
 # level 2
 compile_glsl(gemv.glsl gemv.spv)
-compile_glsl(adapted-from-clblast/level2/xgemv.glsl gemv-new.spv)
+compile_glsl(adapted-from-clblast/level2/xgemv-fast.glsl gemv-fast.spv)
+compile_glsl(adapted-from-clblast/level2/xgemv-fast-rot.glsl gemv-fast-rot.spv)
 compile_glsl(ger.glsl ger.spv)
 compile_glsl(trsv.glsl trsv.spv)
 compile_glsl(adapted-from-clblast/level2/xtrsv-forward.glsl trsv-forward.spv)

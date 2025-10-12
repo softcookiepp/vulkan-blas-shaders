@@ -16,6 +16,8 @@ tart::device_ptr getTestDevice()
 
 uint32_t CeilDiv(const uint32_t x, const uint32_t y) { return 1 + ((x - 1) / y); }
 uint32_t Ceil(const uint32_t x, const uint32_t y) { return CeilDiv(x, y) * y; }
+bool IsMultiple(const uint32_t a, const uint32_t b) { return ((a / b) * b == a) ? true : false; }
+
 
 namespace tartblas
 {
@@ -295,24 +297,33 @@ void doMatVec(tart::command_sequence_ptr sequence,
 
 	// In case of complex data-types, the transpose can also become a conjugate transpose
 	const auto a_conjugate = (CblasConjTrans == a_transpose || CblasConjNoTrans == a_transpose);
-#if 0
+	
+	// temporarily just define them here for now
+	#define GEMV_WGS1 32
+	#define GEMV_WGS2 32
+	#define GEMV_WGS3 32
+	#define GEMV_WPT1 1
+	#define GEMV_WPT2 1
+	#define GEMV_WPT3 1
+	#define GEMV_VW1 1
+	#define GEMV_VW2 1
+	#define GEMV_VW3 1
+
 	// Determines whether or not the fast-version can be used
 	fast_kernel = fast_kernel && (a_offset == 0) && (a_rotated == 0) && (a_conjugate == 0) &&
-				IsMultiple(m, db_["WGS2"] * db_["WPT2"]) && IsMultiple(n, db_["WGS2"]) && IsMultiple(a_ld, db_["VW2"]);
+				IsMultiple(m, GEMV_WGS2 * GEMV_WPT2) && IsMultiple(n, GEMV_WGS2) && IsMultiple(a_ld, GEMV_VW2);
+#if 0
 	fast_kernel_rot = fast_kernel_rot && (a_offset == 0) && (a_rotated == 1) && (a_conjugate == 0) &&
-					IsMultiple(m, db_["WGS3"] * db_["WPT3"]) && IsMultiple(n, db_["WGS3"]) &&
-					IsMultiple(a_ld, db_["VW3"]);
+					IsMultiple(m, GEMV_WGS3 * GEMV_WPT3) && IsMultiple(n, GEMV_WGS3) &&
+					IsMultiple(a_ld, GEMV_VW3);
 #else
-	// not going to do this just yet; need to ensure that the bare minimum works
-	fast_kernel = false;
+	// rotated version is broken, it seems
 	fast_kernel_rot = false;
 #endif
-	// going to do this here for now
-	#define GEMV_WGS1 64
-	#define GEMV_WPT1 1
+	
 	
 	// If possible, run the fast-version (rotated or non-rotated) of the kernel
-	auto kernel_name = std::string{"Xgemv"};
+	auto kernel_name = std::string{"spv/gemv-new.spv"};
 	const auto m_ceiled = Ceil(m_real, GEMV_WGS1 * GEMV_WPT1);
 
 	// the global used to invoke shaders in OpenCL differs from how it is done in Vulkan.
@@ -321,20 +332,94 @@ void doMatVec(tart::command_sequence_ptr sequence,
 	// Without paying attention to this, we will invoke way more work items than actually needed.
 	auto global_size = CeilDiv(m_real, GEMV_WGS1);
 
-	auto local_size = GEMV_WPT1;
-#if 0 // temporarily disabled
+#if 1 // temporarily disabled
+	std::vector<uint8_t> packedPushConsts;
+	if (fast_kernel || fast_kernel_rot)
+	{
+		// both fast shaders have the same push constant layout
+		struct {
+			int m;
+			int n;
+			float alpha;
+			float beta;
+			// A
+			int a_ld;
+			// x
+			int x_offset;
+			int x_inc;
+			// y
+			int y_offset;
+			int y_inc;
+		} pushConstStruct = {
+			static_cast<int>(m_real),
+			static_cast<int>(n_real),
+			alpha,
+			beta,
+			// A
+			static_cast<int>(a_ld),
+			// x
+			static_cast<int>(x_offset),
+			static_cast<int>(x_inc),
+			// y
+			static_cast<int>(y_offset),
+			static_cast<int>(y_inc),
+		};
+		packedPushConsts = tart::packConstants(pushConstStruct);
+	}
 	if (fast_kernel) {
-		kernel_name = "XgemvFast";
-		global_size = m_real / db_["WPT2"];
-		local_size = db_["WGS2"];
+		kernel_name = "spv/gemv-fast.spv";
+		global_size = CeilDiv(m_real / GEMV_WPT2, GEMV_WGS2);
 	}
-	if (fast_kernel_rot) {
-		kernel_name = "XgemvFastRot";
-		global_size = m_real;
-		local_size = db_["WGS3"];
+	else if (fast_kernel_rot) {
+		kernel_name = "spv/gemv-fast-rot.spv";
+		global_size = CeilDiv(m_real, GEMV_WGS3);
 	}
-#endif
-
+	else
+	{
+		struct {
+			int m;
+			int n;
+			float alpha;
+			float beta;
+			int a_rotated;
+			// A
+			int a_offset;
+			int a_ld;
+			// x
+			int x_offset;
+			int x_inc;
+			// y
+			int y_offset;
+			int y_inc;
+			int a_conjugate;
+			int parameter;
+			int kl;
+			int ku;
+		} pushConstStruct = {
+			static_cast<int>(m_real),
+			static_cast<int>(n_real),
+			alpha,
+			beta,
+			static_cast<int>(a_rotated),
+			// A
+			static_cast<int>(a_offset),
+			static_cast<int>(a_ld),
+			// x
+			static_cast<int>(x_offset),
+			static_cast<int>(x_inc),
+			// y
+			static_cast<int>(y_offset),
+			static_cast<int>(y_inc),
+			static_cast<int>(a_conjugate),
+			static_cast<int>(parameter),
+			static_cast<int>(kl),
+			static_cast<int>(ku)
+		};
+		packedPushConsts = tart::packConstants(pushConstStruct);
+	}
+	tart::pipeline_ptr pipeline = getShaderPipeline(kernel_name, {}, packedPushConsts);
+	sequence->recordPipeline(pipeline, {global_size}, {a_buffer, x_buffer, y_buffer}, packedPushConsts);
+#else
 	struct {
 		int m;
 		int n;
@@ -377,6 +462,8 @@ void doMatVec(tart::command_sequence_ptr sequence,
 	std::vector<uint8_t> packedPushConsts = tart::packConstants(pushConstStruct);
 	tart::pipeline_ptr pipeline = getShaderPipeline("spv/gemv-new.spv", {}, packedPushConsts);
 	sequence->recordPipeline(pipeline, {global_size}, {a_buffer, x_buffer, y_buffer}, packedPushConsts);
+#endif
+	
 }
 
 void sgemv(tart::command_sequence_ptr sequence,

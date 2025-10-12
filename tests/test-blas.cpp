@@ -326,9 +326,9 @@ void testScal()
 void testGemv()
 {
 	START_TEST("gemv");
-	for (uint32_t WIDTH = 50; WIDTH <= 60; WIDTH += 1)
+	for (uint32_t WIDTH = 29; WIDTH <= 64; WIDTH += 1)
 	{
-		for (uint32_t HEIGHT = 50; HEIGHT <= 60; HEIGHT += 1)
+		for (uint32_t HEIGHT = 29; HEIGHT <= 64; HEIGHT += 1)
 		{
 			tart::device_ptr dev = getTestDevice();
 			std::vector<enum CBLAS_ORDER> orders({CblasRowMajor, CblasColMajor});
